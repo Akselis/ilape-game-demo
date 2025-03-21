@@ -66,7 +66,11 @@ class EditorScene extends Phaser.Scene {
         const state = {
             blocks: [],
             triggers: [],
-            player: null
+            player: null,
+            camera: {
+                scrollX: this.cameras.main.scrollX,
+                scrollY: this.cameras.main.scrollY
+            }
         };
         
         // Save blocks state
@@ -134,6 +138,9 @@ class EditorScene extends Phaser.Scene {
         if (state.player) {
             this.player = new Player(this, state.player.x, state.player.y);
         }
+        
+        // Restore camera position
+        this.cameras.main.setScroll(state.camera.scrollX, state.camera.scrollY);
     }
     
     setTool(toolName) {
