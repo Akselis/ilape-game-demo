@@ -1,0 +1,12 @@
+{
+    "name": "phaser-level-editor",
+    "version": "1.0.0",
+    "description": "A level editor built with Phaser.js",
+    "main": "server.js",
+    "scripts": {
+        "start": "node server.js"
+    },
+    "dependencies": {
+        "express": "^4.18.2"
+    }
+}
