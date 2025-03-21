@@ -26,7 +26,7 @@ class SelectorTool extends Tool {
         const objects = [...this.scene.blocks.getChildren(), ...this.scene.triggers.getChildren()];
         const clickedObject = objects.find(obj => {
             const bounds = obj.getBounds();
-            return bounds.contains(worldPoint.x, worldPoint.y);
+            return bounds.contains(worldPoint.x, worldPoint.y) && !obj.isGround; // Ignore ground block
         });
         
         if (clickedObject) {

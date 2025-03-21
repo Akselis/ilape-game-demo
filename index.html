@@ -23,10 +23,11 @@
             background: rgba(0, 0, 0, 0.7);
             padding: 10px;
             border-radius: 5px;
+            display: flex;
+            gap: 5px;
         }
         .tool-button {
             padding: 5px 10px;
-            margin: 0 5px;
             cursor: pointer;
             background: #4CAF50;
             border: none;
@@ -35,6 +36,13 @@
         }
         .tool-button.active {
             background: #2E7D32;
+        }
+        #preview-button {
+            background: #2196F3;
+            margin-left: 20px;
+        }
+        #preview-button.active {
+            background: #1976D2;
         }
     </style>
 </head>
@@ -45,16 +53,20 @@
             <button class="tool-button" id="mover-tool">Mover</button>
             <button class="tool-button" id="block-tool">Block</button>
             <button class="tool-button" id="trigger-tool">Level End</button>
+            <button class="tool-button" id="player-tool">Player</button>
+            <button class="tool-button" id="preview-button">Preview Level</button>
         </div>
         <div id="phaser-game"></div>
     </div>
     <script src="js/gameObjects/Block.js"></script>
     <script src="js/gameObjects/LevelEndTrigger.js"></script>
+    <script src="js/gameObjects/Player.js"></script>
     <script src="js/tools/Tool.js"></script>
     <script src="js/tools/SelectorTool.js"></script>
     <script src="js/tools/MoverTool.js"></script>
     <script src="js/tools/BlockTool.js"></script>
     <script src="js/tools/TriggerTool.js"></script>
+    <script src="js/tools/PlayerTool.js"></script>
     <script src="js/scenes/EditorScene.js"></script>
     <script src="js/game.js"></script>
 </body>
