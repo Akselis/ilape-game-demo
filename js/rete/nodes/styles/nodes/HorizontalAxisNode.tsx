@@ -39,7 +39,7 @@ export const NodeStyles = styled.div<
     margin-right: 5px;
     width: 50px;
     height: 50px;
-    background-color: #FE6D40; /* neon green-like */
+    background-color: #FE6D40;
     clip-path: polygon(10% 45%, 60% 45%, 60% 35%, 100% 50%, 60% 65%, 60% 55%, 10% 55%);
     transition: background-color 0.2s ease;
   }

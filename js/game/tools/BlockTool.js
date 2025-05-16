@@ -15,5 +15,17 @@ export class BlockTool extends Tool {
         
         // Switch to selector tool after placing a block
         this.scene.setTool('selector');
+        
+        // Select the newly created block
+        if (this.scene.tools.selector) {
+            // Deselect any previously selected object
+            if (this.scene.tools.selector.selectedObject) {
+                this.scene.tools.selector.selectedObject.setSelected(false);
+            }
+            
+            // Select the new block
+            this.scene.tools.selector.selectedObject = block;
+            block.setSelected(true);
+        }
     }
 }

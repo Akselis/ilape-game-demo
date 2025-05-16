@@ -12,7 +12,7 @@ export class LevelEndTrigger extends Phaser.GameObjects.Container {
         this.rectangle = scene.add.rectangle(0, 0, width, height, 0xff0000, 0.5);
         this.rectangle.setOrigin(0.5);
         
-        this.text = scene.add.text(0, 0, 'END', {
+        this.text = scene.add.text(0, 0, 'Pabaiga', {
             fontSize: '16px',
             color: '#ffffff'
         }).setOrigin(0.5);
@@ -55,6 +55,12 @@ export class LevelEndTrigger extends Phaser.GameObjects.Container {
         // Create physics body for collision detection in preview mode
         scene.physics.world.enable(this, Phaser.Physics.Arcade.STATIC_BODY);
         this.body.setSize(width, height);
+        
+        // Disable the body by default (will be enabled in preview mode)
+        this.body.enable = false;
+        
+        // Hide editor controls by default
+        this.setSelected(false);
     }
     
     resize(cornerIndex, deltaX, deltaY) {
@@ -124,60 +130,85 @@ export class LevelEndTrigger extends Phaser.GameObjects.Container {
     }
     
     /**
-     * Show the level complete overlay with a return to editor button
+     * Set the selected state of the trigger
+     * @param {boolean} selected - Whether the trigger is selected
+     */
+    setSelected(selected) {
+        // Show/hide resize handles
+        this.resizeHandles.forEach(handle => {
+            handle.visible = selected;
+        });
+        
+        // Show/hide delete button
+        this.deleteButton.visible = selected;
+    }
+    
+    /**
+     * Close the level complete overlay if it exists
+     */
+    closeLevelComplete() {
+        if (this.levelCompleteOverlay) {
+            this.levelCompleteOverlay.destroy();
+            this.levelCompleteOverlay = null;
+        }
+        this.isTriggered = false;
+    }
+    
+    /**
+     * Show the level complete overlay
      */
     showLevelComplete() {
         if (this.isTriggered) return; // Prevent multiple triggers
         this.isTriggered = true;
         
-        // Create overlay container
+        // Create overlay container that follows the camera
         this.levelCompleteOverlay = this.scene.add.container(0, 0);
+        this.levelCompleteOverlay.setScrollFactor(0); // Fix to camera
         
-        // Get camera center position
-        const centerX = this.scene.cameras.main.width / 2;
-        const centerY = this.scene.cameras.main.height / 2;
+        // Get camera dimensions
+        const cameraWidth = this.scene.cameras.main.width;
+        const cameraHeight = this.scene.cameras.main.height;
         
         // Add semi-transparent background
         const bg = this.scene.add.rectangle(
-            centerX, centerY,
-            this.scene.cameras.main.width,
-            this.scene.cameras.main.height,
+            cameraWidth / 2, cameraHeight / 2,
+            cameraWidth,
+            cameraHeight,
             0x000000, 0.7
         );
         
-        // Add level complete text
-        const completeText = this.scene.add.text(centerX, centerY - 50, 'Level Complete!', {
-            fontSize: '32px',
+        // Create a victory panel - smaller for mobile devices
+        const isMobile = cameraWidth < 768;
+        const panelWidth = isMobile ? Math.min(300, cameraWidth * 0.7) : Math.min(400, cameraWidth * 0.8);
+        const panelHeight = isMobile ? 180 : 200;
+        const panel = this.scene.add.rectangle(
+            cameraWidth / 2, 
+            cameraHeight / 2,
+            panelWidth, 
+            panelHeight, 
+            0x333333, 0.9
+        );
+        panel.setStrokeStyle(2, 0xffffff, 0.8);
+        
+        // Add victory text ("Pergalė!") - smaller font for mobile
+        const fontSize = isMobile ? '36px' : '48px';
+        const completeText = this.scene.add.text(cameraWidth / 2, cameraHeight / 2 - 30, 'Pergalė!', {
+            fontSize: fontSize,
             color: '#ffffff',
-            fontStyle: 'bold'
+            fontStyle: 'bold',
+            fontFamily: 'Arial, sans-serif'
         }).setOrigin(0.5);
         
-        // Add return to editor button
-        const buttonBg = this.scene.add.rectangle(centerX, centerY + 50, 200, 50, 0x4a8a4a);
-        buttonBg.setInteractive({ useHandCursor: true });
-        
-        const buttonText = this.scene.add.text(centerX, centerY + 50, 'Return to Editor', {
-            fontSize: '18px',
-            color: '#ffffff'
+        // Add a star or trophy icon
+        const iconSize = isMobile ? '32px' : '40px';
+        const starIcon = this.scene.add.text(cameraWidth / 2, cameraHeight / 2 + 20, '🏆', {
+            fontSize: iconSize
         }).setOrigin(0.5);
         
-        // Add click handler to return to editor
-        buttonBg.on('pointerdown', () => {
-            // Call togglePreview on the scene to exit preview mode
-            if (this.scene.togglePreview) {
-                this.scene.togglePreview();
-            }
-            
-            // Remove the overlay
-            this.levelCompleteOverlay.destroy();
-            this.isTriggered = false;
-        });
+        // Add all elements to the container - no button anymore
+        this.levelCompleteOverlay.add([bg, panel, completeText, starIcon]);
         
-        // Add all elements to the container
-        this.levelCompleteOverlay.add([bg, completeText, buttonBg, buttonText]);
-        
-        // Make sure the overlay stays fixed to the camera
-        this.levelCompleteOverlay.setDepth(1000); // Ensure it's on top of everything
-        this.scene.cameras.main.ignore(this.levelCompleteOverlay);
+        // Make sure the overlay stays fixed to the camera and is on top of everything
+        this.levelCompleteOverlay.setDepth(1000);
     }
 }

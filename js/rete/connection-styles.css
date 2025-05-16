@@ -1,0 +1,89 @@
+/* Custom styles for Rete editor connections */
+.connection {
+  z-index: 1 !important; /* Force connections to render under nodes */
+  will-change: transform; /* Optimize for animations and transforms */
+  backface-visibility: hidden; /* Improve rendering performance */
+  transform: translateZ(0); /* Force GPU acceleration */
+  -webkit-transform: translateZ(0); /* For Safari */
+  -moz-transform: translateZ(0); /* For Firefox */
+  -ms-transform: translateZ(0); /* For IE/Edge */
+}
+
+/* Ensure nodes have a higher z-index */
+.node {
+  z-index: 10 !important; /* Higher z-index to render above connections */
+  will-change: transform; /* Optimize for animations and transforms */
+  backface-visibility: hidden; /* Improve rendering performance */
+  transform: translateZ(0); /* Force GPU acceleration */
+  -webkit-transform: translateZ(0); /* For Safari */
+  -moz-transform: translateZ(0); /* For Firefox */
+  -ms-transform: translateZ(0); /* For IE/Edge */
+}
+
+/* Socket styles to ensure they're visible above connections */
+.socket {
+  z-index: 15 !important; /* Even higher z-index to be above nodes and connections */
+  will-change: transform; /* Optimize for animations and transforms */
+  backface-visibility: hidden; /* Improve rendering performance */
+  transform: translateZ(0); /* Force GPU acceleration */
+  -webkit-transform: translateZ(0); /* For Safari */
+  -moz-transform: translateZ(0); /* For Firefox */
+  -ms-transform: translateZ(0); /* For IE/Edge */
+}
+
+/* SVG path styles for connections to ensure proper rendering */
+.connection svg path {
+  stroke-linecap: round; /* Rounded line ends */
+  shape-rendering: geometricPrecision; /* Improve SVG rendering quality */
+  pointer-events: all; /* Ensure connections are clickable */
+  paint-order: stroke; /* Ensure stroke is painted first */
+}
+
+/* Force SVG elements to redraw on touch interactions */
+.connection svg {
+  transform-origin: center center;
+  transform-box: fill-box;
+  vector-effect: non-scaling-stroke; /* Maintain stroke width during scaling */
+}
+
+/* Ensure SVG connections are properly rendered during interactions */
+.connection-container {
+  contain: layout; /* Improve rendering performance */
+  contain: paint; /* Limit paint operations to this element */
+  isolation: isolate; /* Create a new stacking context */
+}
+
+/* Additional styles for the editor container to improve mobile rendering */
+.rete-editor-responsive {
+  touch-action: none; /* Prevent browser handling of touch events */
+  overflow: hidden; /* Prevent scrolling */
+  -webkit-overflow-scrolling: touch; /* Improve scrolling on iOS */
+  -webkit-user-select: none; /* Prevent text selection on iOS */
+  -moz-user-select: none; /* Prevent text selection on Firefox */
+  -ms-user-select: none; /* Prevent text selection on IE/Edge */
+  user-select: none; /* Prevent text selection on standard browsers */
+  -webkit-tap-highlight-color: transparent; /* Remove tap highlight */
+}
+
+/* Prevent selection on all Rete editor elements */
+.rete-editor-responsive *,
+.node,
+.socket,
+.connection,
+.connection svg,
+.connection-container,
+.background {
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+  -ms-user-select: none !important;
+  user-select: none !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+/* Prevent double-tap zoom on mobile */
+.rete-editor-responsive div,
+.rete-editor-responsive svg,
+.node-editor {
+  touch-action: none;
+  -ms-touch-action: none;
+}

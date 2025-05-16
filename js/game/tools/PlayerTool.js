@@ -21,5 +21,17 @@ export class PlayerTool extends Tool {
         
         // Switch to selector tool after placing player
         this.scene.setTool('selector');
+        
+        // Select the newly created player
+        if (this.scene.tools.selector && this.scene.player.setSelected) {
+            // Deselect any previously selected object
+            if (this.scene.tools.selector.selectedObject) {
+                this.scene.tools.selector.selectedObject.setSelected(false);
+            }
+            
+            // Select the new player
+            this.scene.tools.selector.selectedObject = this.scene.player;
+            this.scene.player.setSelected(true);
+        }
     }
 }

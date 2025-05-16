@@ -16,7 +16,7 @@ export class PlayerLogicProcessor {
   private updateEntryPoints: any[] = [];
   private readyEntryPoints: any[] = [];
   private nodeResultCache: Map<string, NodeResult> = new Map();
-  private debugMode: boolean = true;
+  private debugMode: boolean = false;
   private lastExecutionTime: number = 0;
   private previousPlayerState: PlayerState;
   private _noUpdateNodesLogged: boolean = false;
@@ -40,9 +40,7 @@ export class PlayerLogicProcessor {
     this.findEntryPoints();
     this.processReadyNodes();
     
-    console.log('PlayerLogicProcessor initialized with', 
-      this.updateEntryPoints.length, 'update entry points and',
-      this.readyEntryPoints.length, 'ready entry points');
+    // Initialize processor silently
   }
   
   /**
@@ -57,7 +55,7 @@ export class PlayerLogicProcessor {
       const nodes = this.editor.getNodes();
       
       if (!nodes || nodes.length === 0) {
-        console.log('No nodes found in the editor');
+        // No nodes found
         return;
       }
       
@@ -67,22 +65,22 @@ export class PlayerLogicProcessor {
         
         if (node.constructor.name === 'OnUpdateNode') {
           this.updateEntryPoints.push(node);
-          console.log('Found OnUpdate entry point node:', node.id);
+          // Found OnUpdate node
         } else if (node.constructor.name === 'OnReadyNode') {
           this.readyEntryPoints.push(node);
-          console.log('Found OnReady entry point node:', node.id);
+          // Found OnReady node
         }
       }
       
       if (this.updateEntryPoints.length === 0) {
-        console.log('No OnUpdate nodes found in the graph');
+        // No OnUpdate nodes
       }
       
       if (this.readyEntryPoints.length === 0) {
-        console.log('No OnReady nodes found in the graph');
+        // No OnReady nodes
       }
     } catch (error) {
-      console.error('Error finding entry points:', error);
+      // Error finding entry points
     }
   }
   
@@ -96,20 +94,20 @@ export class PlayerLogicProcessor {
       
       // Process each OnReady entry point
       if (this.readyEntryPoints.length === 0) {
-        console.log('No OnReady entry points found in the graph');
+        // No OnReady nodes to process
         return;
       }
       
-      console.log(`Processing ${this.readyEntryPoints.length} OnReady nodes...`);
+      // Process OnReady nodes
       for (const readyNode of this.readyEntryPoints) {
         if (readyNode) {
-          console.log(`Executing OnReady node: ${readyNode.id}`);
+          // Execute OnReady node
           await this.processNodeDirectly(readyNode, context);
         }
       }
-      console.log('OnReady processing complete');
+      // OnReady processing complete
     } catch (error) {
-      console.error('Error in processReadyNodes:', error);
+      // Error in processReadyNodes
     }
   }
   
@@ -119,7 +117,9 @@ export class PlayerLogicProcessor {
    * @param deltaTime - Time elapsed since last update (in seconds)
    */
   async processLogic(deltaTime: number = 0.016): Promise<void> {
+    console.log('PROCESSOR: processLogic called with deltaTime:', deltaTime);
     try {
+      console.log('PROCESSOR: Starting processLogic execution');
       const startTime = performance.now();
       
       // Clear result cache at the start of each frame
@@ -133,25 +133,34 @@ export class PlayerLogicProcessor {
       // Store current player state for delta calculations
       this.updatePlayerState();
       
-      // Create context with player reference and delta time
+      // Create context with player reference, delta time, and input state
       const context: NodeExecutionContext = { 
         player: this.player,
         deltaTime: deltaTime,
         time: Date.now(),
         previousState: this.previousPlayerState,
-        isOnGround: this._isPlayerOnGround
+        isOnGround: this._isPlayerOnGround,
+        gravity: 600, // Default gravity value for the game
+        inputState: this.player.inputState || { left: false, right: false, jump: false }
       };
       
-      // Process each OnUpdate entry point
+      console.log('PROCESSOR: Ground state set to:', this._isPlayerOnGround);
+      
+      // Debug the entry points we have
+      console.log('PROCESSOR: Update entry points:', this.updateEntryPoints.length, 
+                 'Entry point IDs:', this.updateEntryPoints.map(n => n.id).join(', '));
+      
+      // No entry points
       if (this.updateEntryPoints.length === 0) {
-        // Only log this once to avoid console spam
+        console.log('PROCESSOR: No OnUpdate nodes found in editor - this is likely the root issue!');
         if (!this._noUpdateNodesLogged) {
-          console.log('No OnUpdate entry points found in the graph');
+          console.warn('No OnUpdate nodes found in editor');
           this._noUpdateNodesLogged = true;
         }
         return;
       }
       
+      // Process each OnUpdate entry point
       // Process all update nodes
       for (const updateNode of this.updateEntryPoints) {
         if (updateNode) {
@@ -162,10 +171,10 @@ export class PlayerLogicProcessor {
       // Track execution time for performance monitoring
       this.lastExecutionTime = performance.now() - startTime;
       if (this.debugMode && this.lastExecutionTime > 5) {
-        console.log(`Node graph execution took ${this.lastExecutionTime.toFixed(2)}ms`);
+        // Track execution time silently
       }
     } catch (error) {
-      console.error('Error in processLogic:', error);
+      // Error in processLogic
     }
   }
   
@@ -177,13 +186,13 @@ export class PlayerLogicProcessor {
   async processNodeDirectly(node: any, context: NodeExecutionContext): Promise<NodeResult | null> {
     try {
       if (!node) {
-        console.warn('Attempted to process undefined node');
+        // Attempted to process undefined node
         return null;
       }
       
       // Check if the node is properly initialized
       if (!node.id) {
-        console.warn('Node is not properly initialized (missing id):', node);
+        // Node is not properly initialized
         return null;
       }
       
@@ -193,8 +202,31 @@ export class PlayerLogicProcessor {
       }
       
       if (this.debugMode) {
-        console.log(`Processing node: ${node.constructor.name} (${node.id})`);
+        // Processing node
       }
+      
+      // Enhanced debugging for production: log detailed node structure
+      const nodeStructure = {
+        id: node.id,
+        hasConstructor: !!node.constructor,
+        constructorName: node.constructor?.name,
+        staticType: node.constructor?.TYPE, 
+        inputs: Object.keys(node.inputs || {}),
+        outputs: Object.keys(node.outputs || {}),
+        hasData: typeof node.data === 'function',
+        prototype: Object.getPrototypeOf(node)?.constructor?.name,
+        // Deep inspection of all properties
+        allNodeProperties: Object.getOwnPropertyNames(node),
+        allConstructorProps: Object.getOwnPropertyNames(node.constructor || {}),
+        // Full recursive stringified node (be careful with circular references)
+        fullNode: JSON.stringify(node, (key, value) => {
+          // Skip complex objects that might cause circular references
+          if (key === 'editor' || key === 'component' || key === 'parent') return '[Circular]';
+          return value;
+        }, 2)
+      };
+      
+      console.log('FULL NODE STRUCTURE:', nodeStructure);
       
       // Get input values for this node
       const inputs = await this.getNodeInputs(node);
@@ -202,13 +234,28 @@ export class PlayerLogicProcessor {
       // Call the node's data method directly
       if (typeof node.data === 'function') {
         // Special handling for TransformNode to enforce ground state check
-        if (node.constructor.name === 'TransformNode') {
+        // Forced detection in production - the structure is what matters
+        // If the node has x and y inputs and an execIn input, it's a transform node
+        const hasXYInputs = !!(node.inputs?.x && node.inputs?.y);
+        const hasExecIn = !!node.inputs?.execIn;
+        const transformTypeMatches = (node.constructor?.TYPE === 'TRANSFORM');
+        
+        // For debug only
+        console.log(`Node ${node.id} transform check:`, {
+          hasXYInputs,
+          hasExecIn,
+          transformTypeMatches,
+          constructorName: node.constructor?.name,
+          inputKeys: Object.keys(node.inputs || {}),
+        });
+        
+        // Very simple detection - if it has x, y, and execIn inputs, it's a TransformNode
+        const isTransformNode = hasXYInputs && hasExecIn;
+        
+        if (isTransformNode) {
           // Pass isOnGround to the context
           context.isOnGround = this._isPlayerOnGround;
-          
-          if (this.debugMode) {
-            console.log(`TransformNode: Player is ${this._isPlayerOnGround ? 'on ground' : 'in air'}`);
-          }
+          console.log('TransformNode detected, applying ground state:', this._isPlayerOnGround);
         }
         
         const result = node.data(inputs, context);
@@ -217,22 +264,41 @@ export class PlayerLogicProcessor {
         this.nodeResultCache.set(node.id, result);
         
         if (this.debugMode) {
-          console.log(`Node ${node.id} result:`, result);
+          // Node result processed
         }
         
         // Special handling for execution flow
-        if (node.constructor.name === 'OnUpdateNode') {
+        // Simplified OnUpdateNode detection for production
+        // OnUpdateNode has execOut output but NO execIn input (it's the start of execution flow)
+        const hasExecOut = !!node.outputs?.execOut;
+        const hasNoExecIn = !node.inputs?.execIn;
+        const updateTypeMatches = (node.constructor?.TYPE === 'ON_UPDATE');
+        
+        // For debug only
+        console.log(`Node ${node.id} OnUpdate check:`, {
+          hasExecOut,
+          hasNoExecIn,
+          updateTypeMatches,
+          constructorName: node.constructor?.name,
+          outputKeys: Object.keys(node.outputs || {}),
+        });
+        
+        // Very simple detection based on structure - if it has execOut but no execIn, it's an OnUpdateNode
+        const isOnUpdateNode = hasExecOut && hasNoExecIn;
+        
+        if (isOnUpdateNode) {
+          console.log('OnUpdateNode detected, following execution flow through connected nodes');
           // Follow execution flow through connected nodes
           await this.followExecutionFlow(node, 'execOut', context);
         }
         
         return result;
       } else {
-        console.warn(`Node ${node.id} does not have a data method`);
+        // Node does not have a data method
         return null;
       }
     } catch (error) {
-      console.error(`Error processing node ${node?.id}:`, error);
+      // Error processing node
       return null;
     }
   }
@@ -248,27 +314,49 @@ export class PlayerLogicProcessor {
       // Get all connections from the editor
       const connections = this.editor.getConnections();
       
+      // Log all connections for debugging in production
+      console.log('All connections:', JSON.stringify(connections));
+      
       // Find connections from this output
       const connectionsFromOutput = connections.filter(conn => 
         conn.source === node.id && conn.sourceOutput === outputName
       );
+      
+      // Log matched connections
+      console.log(`Found ${connectionsFromOutput.length} connections from node ${node.id} output ${outputName}`);
       
       // Process each connected node
       for (const conn of connectionsFromOutput) {
         const targetNode = this.editor.getNode(conn.target);
         
         if (targetNode) {
+          console.log(`Processing connected node: ${conn.target}, type: ${targetNode.constructor.name}`);
+          
           // Process the target node
           await this.processNodeDirectly(targetNode, context);
           
-          // If this is a TransformNode, we've applied movement and can stop
-          if (targetNode.constructor.name === 'TransformNode') {
-            break;
+          // Continue execution flow through this node
+          if (targetNode.outputs && targetNode.outputs.execOut) {
+            await this.followExecutionFlow(targetNode, 'execOut', context);
+          }
+          
+          // Use structural type checking to identify TransformNode regardless of minification
+          const isTransformNode = (
+            // Check for specific input structure (exec, x, y inputs) that's unique to TransformNode
+            (targetNode.inputs && targetNode.inputs.execIn && targetNode.inputs.x && targetNode.inputs.y) ||
+            // Check for static TYPE property if available
+            (targetNode.constructor && (targetNode.constructor as any).TYPE === 'TRANSFORM') ||
+            // Fallback to data property
+            ((targetNode as any).data && ((targetNode as any).data.nodeType === 'TRANSFORM' || (targetNode as any).data.nodeType === 'transform'))
+          );
+          
+          if (isTransformNode) {
+            console.log('Found and processed TransformNode, movement applied');
           }
         }
       }
     } catch (error) {
-      console.error(`Error following execution flow from node ${node?.id}:`, error);
+      console.error('Error following execution flow:', error);
     }
   }
   
@@ -297,13 +385,28 @@ export class PlayerLogicProcessor {
           // Initialize array for this input
           inputs[inputName] = [];
           
-          // Process each connected node
+          // Special handling for exec inputs - they only need to know a connection exists
+          if (inputName === 'execIn' || inputName === 'exec') {
+            // For exec inputs, just push a dummy value to indicate connection exists
+            inputs[inputName].push(true);
+            console.log(`Found exec connection for node ${node.id} - Input Name: ${inputName}`);
+            // Log the entire connection for debugging
+            console.log('Connection details:', JSON.stringify(connectionsToInput[0]));
+            continue; // Skip processing the source node for exec inputs
+          }
+          
+          // Process each connected node for non-exec inputs
           for (const conn of connectionsToInput) {
             const sourceNode = this.editor.getNode(conn.source);
             
             if (sourceNode) {
               // Process the source node to get its output
-              const sourceOutput = await this.processNodeDirectly(sourceNode, { player: this.player });
+              const sourceOutput = await this.processNodeDirectly(sourceNode, { 
+                player: this.player,
+                inputState: this.player.inputState,
+                isOnGround: this._isPlayerOnGround,
+                gravity: 600
+              });
               
               if (sourceOutput && sourceOutput.value !== undefined) {
                 inputs[inputName].push(sourceOutput.value);
@@ -317,7 +420,7 @@ export class PlayerLogicProcessor {
       
       return inputs;
     } catch (error) {
-      console.error(`Error getting inputs for node ${node?.id}:`, error);
+      console.error('Error getting inputs for node:', error);
       return {};
     }
   }
@@ -336,7 +439,7 @@ export class PlayerLogicProcessor {
    * Called when the graph structure changes
    */
   onGraphChanged(): void {
-    console.log('Graph structure changed, finding entry points...');
+    // Graph structure changed, finding entry points
     this.findEntryPoints();
   }
   

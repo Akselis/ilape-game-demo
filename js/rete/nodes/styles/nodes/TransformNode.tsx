@@ -46,7 +46,7 @@ export const NodeStyles = styled.div<
     width: 100%;
     height: 100%;
     background-color: #B0FD59;
-    clip-path: polygon(45% 90%, 45% 40%, 35% 40%, 50% 0%, 65% 40%, 55% 40%, 55% 90%);
+    clip-path: polygon(15% 90%, 15% 40%, 5% 40%, 20% 0%, 35% 40%, 25% 40%, 25% 90%);
     transition: background-color 0.2s ease;
   }
   .icon-secondary {
@@ -54,7 +54,7 @@ export const NodeStyles = styled.div<
     width: 100%;
     height: 100%;
     background-color: #FF7E5F;
-    clip-path: polygon(30% 100%, 70% 100%, 70% 60%, 30% 60%);
+    clip-path: polygon(25% 80%, 60% 80%, 60% 70%, 100% 85%, 60% 100%, 60% 90%, 15% 90%);
     transition: background-color 0.2s ease;
   }
   .output {

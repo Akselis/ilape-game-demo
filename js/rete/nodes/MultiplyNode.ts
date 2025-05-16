@@ -1,10 +1,13 @@
 import { ClassicPreset } from 'rete';
+import { NodeType } from './NodeTypes';
 
 const numberSocket = new ClassicPreset.Socket("number");
 
 export class MultiplyNode extends ClassicPreset.Node {
+    // Static property that won't be minified
+    static readonly TYPE = NodeType.MULTIPLY;
     constructor() {
-        super('Multiply');
+        super('Daugyba');
         
         this.addInput('a', new ClassicPreset.Input(numberSocket, 'A'));
         this.addInput('b', new ClassicPreset.Input(numberSocket, 'B'));
@@ -20,8 +23,13 @@ export class MultiplyNode extends ClassicPreset.Node {
         // Multiply the values
         const result = aValue * bValue;
         
-        console.log(`MultiplyNode: ${aValue} × ${bValue} = ${result}`);
-        
         return { value: result };
+    }
+    
+    serialize() {
+        // Include type information in serialized data
+        return {
+            nodeType: NodeType.MULTIPLY
+        };
     }
 }

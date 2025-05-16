@@ -4,6 +4,8 @@ import './suppressWarnings.js';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import "./rete/background.css";
+import "./game/touch-controls.css";
 // Import the game after App to ensure the DOM is ready
 import './game/game.js';
 

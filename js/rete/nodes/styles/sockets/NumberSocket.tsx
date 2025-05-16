@@ -5,8 +5,8 @@ import { $socketsize } from "../vars";
 const Styles = styled.div`
   display: inline-block;
   cursor: pointer;
-  width: ${$socketsize * 0.5}px;
-  height: ${$socketsize * 0.65}px;
+  width: ${$socketsize * 1.5}px;
+  height: ${$socketsize * 1.5}px;
   vertical-align: middle;
   z-index: 2;
   box-sizing: border-box;
@@ -15,23 +15,22 @@ const Styles = styled.div`
   &:before {
     content: "";
     position: absolute;
-    top: 0;
-    left: 0;
-
-
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
     width: 12px;
     height: 12px;
-    background-color: #7ed4fa;
+    background-color: #C2C2C2;
     border-radius: 50%;
     transition: background-color 0.2s ease;
   }
 
   &:hover:before {
-    background-color: #5b99b5; /* Darker green on hover */
+    background-color:rgb(130, 130, 130);
   }
 `;
 
-export function FloatSocket<T extends ClassicPreset.Socket>(props: {
+export function NumberSocket<T extends ClassicPreset.Socket>(props: {
   data: T;
 }) {
   return <Styles title={props.data.name} />;

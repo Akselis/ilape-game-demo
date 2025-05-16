@@ -10,6 +10,8 @@ export type Schemes = GetSchemes<
 export interface Player {
   x: number;
   y: number;
+  moveSpeed: number;
+  jumpSpeed: number;
   body: {
     velocity: {
       x: number;
@@ -31,6 +33,11 @@ export interface Player {
     setVelocityY: (value: number) => void;
   };
   setPosition: (x: number, y: number) => void;
+  inputState?: {
+    left: boolean;
+    right: boolean;
+    jump: boolean;
+  };
 }
 
 // Player state interface
@@ -52,6 +59,12 @@ export interface NodeExecutionContext {
   time?: number;
   previousState?: PlayerState;
   isOnGround?: boolean;
+  gravity?: number;
+  inputState?: {
+    left: boolean;
+    right: boolean;
+    jump: boolean;
+  };
 }
 
 // Node input type

@@ -1,0 +1,20 @@
+.background {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background-size: 20px 20px;
+  background-image: linear-gradient(to right, rgba(159, 159, 159, 0.1) 1px, transparent 1px),
+                    linear-gradient(to bottom, rgba(159, 159, 159, 0.1) 1px, transparent 1px);
+  background-position: 0 0;
+  z-index: -10;
+  pointer-events: none;
+}
+
+.fill-area {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  transform-origin: 0 0;
+}

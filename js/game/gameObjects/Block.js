@@ -29,6 +29,7 @@ export class Block extends Phaser.GameObjects.Container {
             this.resizeHandles.push(handle);
         });
         
+        // Add all elements to the container
         this.add([this.rectangle, this.deleteButton, ...this.resizeHandles]);
         scene.add.existing(this);
         
@@ -39,6 +40,9 @@ export class Block extends Phaser.GameObjects.Container {
         this.deleteButton.on('pointerdown', () => {
             this.destroy();
         });
+        
+        // Hide editor controls by default
+        this.setSelected(false);
     }
     
     resize(cornerIndex, deltaX, deltaY) {
@@ -98,5 +102,22 @@ export class Block extends Phaser.GameObjects.Container {
         this.resizeHandles.forEach((handle, index) => {
             handle.setPosition(positions[index][0], positions[index][1]);
         });
+    }
+    
+    /**
+     * Set the selected state of the block
+     * @param {boolean} selected - Whether the block is selected
+     */
+    setSelected(selected) {
+        // Skip for ground blocks
+        if (this.isGround) return;
+        
+        // Show/hide resize handles
+        this.resizeHandles.forEach(handle => {
+            handle.visible = selected;
+        });
+        
+        // Show/hide delete button
+        this.deleteButton.visible = selected;
     }
 }
