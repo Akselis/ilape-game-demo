@@ -6,9 +6,7 @@
     "scripts": {
         "start": "node server.js",
         "dev": "vite",
-        "build": "vite build",
-        "load-test": "artillery run load-test.yml",
-        "load-test:report": "artillery run --output report.json load-test.yml && artillery report report.json"
+        "build": "vite build"
     },
     "license": "ISC",
     "dependencies": {
@@ -31,7 +29,6 @@
         "@types/react": "^19.1.1",
         "@types/react-dom": "^19.1.2",
         "@vitejs/plugin-react": "^4.3.1",
-        "artillery": "^2.0.22",
         "typescript": "^5.8.3",
         "vite": "^5.3.1"
     },

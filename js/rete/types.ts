@@ -33,6 +33,12 @@ export interface Player {
     setVelocityY: (value: number) => void;
   };
   setPosition: (x: number, y: number) => void;
+  keyboardState?: {
+    left: boolean;
+    right: boolean;
+    up: boolean;
+    down: boolean;
+  };
   inputState?: {
     left: boolean;
     right: boolean;

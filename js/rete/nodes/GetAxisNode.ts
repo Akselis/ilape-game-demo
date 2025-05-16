@@ -86,12 +86,17 @@ export class GetVerticalAxisNode extends ClassicPreset.Node {
         // Combine keyboard and touch inputs
         const keyboardValue = (keyStates.ArrowUp ? -1 : 0) + (keyStates.ArrowDown ? 1 : 0);
         
-        // Get jump state from context when available
-        // Jump is typically considered as upward movement (negative Y in Phaser)
+        // Get jump and down state from context when available
         let touchValue = 0;
         if (context?.inputState) {
             // Jump button corresponds to upward movement (negative Y)
             touchValue = context.inputState.jump ? -1 : 0;
+            
+            // Check for down button from touch controls for fast falling
+            // We need to access the player's keyboardState.down since that's where the touch down state is stored
+            if (context.player && context.player.keyboardState && context.player.keyboardState.down) {
+                touchValue = 1; // Positive value for downward movement (fast falling)
+            }
         }
         
         return clamp(keyboardValue + touchValue, -1, 1);

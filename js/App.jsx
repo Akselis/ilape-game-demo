@@ -29,20 +29,52 @@ function App() {
       // Set a CSS variable with the viewport height
       const vh = window.innerHeight * 0.01;
       document.documentElement.style.setProperty('--vh', `${vh}px`);
+      
+      // Apply the height directly to root and container elements for more consistent sizing
+      const rootElement = document.getElementById('root');
+      if (rootElement) {
+        rootElement.style.height = `${window.innerHeight}px`;
+      }
+      
+      // Apply to container element if it exists
+      if (containerRef.current) {
+        // Subtract header height for more accurate calculation
+        const headerHeight = isMobile ? 49 : 60;
+        containerRef.current.style.height = `${window.innerHeight - headerHeight}px`;
+      }
     };
     
     // Run it initially
     setViewportHeight();
     
-    // Add event listeners
-    window.addEventListener('resize', setViewportHeight);
-    window.addEventListener('orientationchange', setViewportHeight);
+    // Add event listeners with debounce for better performance
+    let resizeTimer;
+    const handleResize = () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(setViewportHeight, 100);
+    };
+    
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', () => {
+      // Delay slightly more after orientation change
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(setViewportHeight, 200);
+    });
+    
+    // Also run when visibility changes (tab becomes active again)
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        setViewportHeight();
+      }
+    });
     
     return () => {
-      window.removeEventListener('resize', setViewportHeight);
-      window.removeEventListener('orientationchange', setViewportHeight);
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+      document.removeEventListener('visibilitychange', handleResize);
+      clearTimeout(resizeTimer);
     };
-  }, []);
+  }, [isMobile]); // Add isMobile as dependency to recalculate when it changes
   
   // References to container elements
   const containerRef = useRef(null);
@@ -319,12 +351,19 @@ function App() {
               fontSize: isMobile ? '12px' : '14px'
             }}
           >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-              <path d={currentView === 'game' 
-                ? "M2,4 L14,4 L14,12 L2,12 L2,4 M5,7 L11,7 M5,9 L11,9" // Code icon
-                : "M4,4 L12,4 L12,12 L4,12 L4,4" // Game icon
-              } stroke="currentColor" strokeWidth="1.5" fill="none" />
-            </svg>
+            {currentView === 'game' ? (
+              // Code icon - </> symbol as text
+              <span style={{
+                fontSize: '10px',
+                fontFamily: 'monospace',
+                fontWeight: 'bold'
+              }}>&lt;/&gt;</span>
+            ) : (
+              // Game icon - square
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M4,4 L12,4 L12,12 L4,12 L4,4" stroke="currentColor" strokeWidth="1.5" fill="none" />
+              </svg>
+            )}
             {!isMobile && (
               <span style={{ marginLeft: '8px' }}>
                 {currentView === 'game' ? 'Skriptas' : 'Žaidimas'}
@@ -419,13 +458,15 @@ function App() {
         style={{
           position: 'relative',
           width: '200vw', // Double width to accommodate both views side by side
-          height: 'calc(100% - ' + (isMobile ? '49px' : '60px') + ')', // Subtract header height
+          height: `calc(100vh - ${isMobile ? '49px' : '60px'})`, // Use viewport height instead of percentage
           display: 'flex',
           flexDirection: 'row',
           overflow: 'hidden',
           transform: `translateX(${currentView === 'game' ? 0 : -window.innerWidth}px)`,
           transition: 'transform 0.5s ease-in-out',
-          paddingTop: isMobile ? '49px' : '60px' // Add padding to the top to avoid overlap with navigation bar
+          paddingTop: 0, // Remove padding as we're handling this with absolute positioning
+          marginTop: isMobile ? '49px' : '60px', // Use margin instead of padding for better sizing
+          boxSizing: 'border-box' // Ensure padding is included in height calculation
         }}
       >
         {/* Game View */}
@@ -452,7 +493,7 @@ function App() {
             height: isMobile ? 'calc(100vh - 40px)' : 'calc(100vh - 60px)', // Subtract the top padding to ensure it fits
             overflow: 'auto', // Add scrolling if needed
             width: isMobile ? '50px' : 'auto', // Narrower on mobile
-            transition: 'transform 0.3s ease-in-out', // Add transition for smooth animation
+            transition: 'transform 0.15s ease-in-out', // Faster transition for sidebar collapse/expand
             transform: isPreviewMode ? 'translateX(-100%)' : 'translateX(0)', // Collapse when in preview mode on any device
             position: 'absolute',
             zIndex: 10
@@ -575,7 +616,7 @@ function App() {
             width: isPreviewMode ? '100%' : 'calc(100% - ' + (isMobile ? '50px' : '120px') + ')',
             height: '100%',
             left: isPreviewMode ? '0' : (isMobile ? '50px' : '120px'),
-            transition: 'width 0.3s ease-in-out, left 0.3s ease-in-out', // Add transition for smooth resizing
+            transition: 'width 0.15s ease-in-out, left 0.15s ease-in-out', // Faster transition for resizing
             zIndex: 5
           }}>
             <div style={{ 

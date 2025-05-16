@@ -281,13 +281,14 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
     
     update(time, delta) {
-        // Only process input in preview mode
-        if (this.scene.isPreviewMode) {
+        // Only process input in preview mode and when victory popup is not shown
+        if (this.scene.isPreviewMode && !this.scene.isVictoryPopupShown) {
             // Update input state from touch controls if available
             if (this.scene.touchControls) {
                 this.inputState.left = this.scene.touchControls.left || false;
                 this.inputState.right = this.scene.touchControls.right || false;
                 this.inputState.jump = this.scene.touchControls.jump || false;
+                this.keyboardState.down = this.scene.touchControls.down || false;
             } 
             // Otherwise use keyboard as input state
             else {
@@ -296,12 +297,18 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
                 this.inputState.jump = this.keyboardState.up || false;
             }
         } else {
-            // Reset input state when not in preview mode
+            // Reset input state when not in preview mode or when victory popup is shown
             this.inputState = {
                 left: false,
                 right: false,
                 jump: false
             };
+            
+            // If victory popup is shown, also stop all movement
+            if (this.scene.isVictoryPopupShown && this.body) {
+                this.body.velocity.x = 0;
+                this.body.velocity.y = 0;
+            }
         }
         
         // FORCE DEBUG: Log the state of the player and logic processor
@@ -314,8 +321,28 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
             isPlayerOnGround: this.body.touching.down
         });
 
-        // Process all movement through the logic processor
-        if (this.logicProcessor) {
+        // If victory popup is shown, freeze the player completely
+        if (this.scene.isVictoryPopupShown && this.body) {
+            // Set velocity to zero to stop all movement
+            this.body.velocity.x = 0;
+            this.body.velocity.y = 0;
+            
+            // Also disable gravity temporarily to prevent any falling
+            this.body.setGravityY(0);
+            
+            // Set immovable to true to prevent any physics interactions from moving the player
+            this.body.immovable = true;
+            
+            console.log('Player frozen due to victory popup');
+        }
+        // Otherwise, process movement normally
+        else if (this.logicProcessor) {
+            // Re-enable gravity if it was disabled
+            if (this.body && this.body.gravity.y === 0) {
+                this.body.setGravityY(600);
+                this.body.immovable = false;
+            }
+            
             // Calculate delta time in seconds
             const deltaTime = delta / 1000;
             

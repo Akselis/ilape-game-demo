@@ -152,6 +152,11 @@ export class LevelEndTrigger extends Phaser.GameObjects.Container {
             this.levelCompleteOverlay = null;
         }
         this.isTriggered = false;
+        
+        // Notify the scene that the victory popup is closed
+        if (this.scene) {
+            this.scene.isVictoryPopupShown = false;
+        }
     }
     
     /**
@@ -160,6 +165,11 @@ export class LevelEndTrigger extends Phaser.GameObjects.Container {
     showLevelComplete() {
         if (this.isTriggered) return; // Prevent multiple triggers
         this.isTriggered = true;
+        
+        // Notify the scene that the victory popup is shown
+        if (this.scene) {
+            this.scene.isVictoryPopupShown = true;
+        }
         
         // Create overlay container that follows the camera
         this.levelCompleteOverlay = this.scene.add.container(0, 0);
@@ -177,10 +187,10 @@ export class LevelEndTrigger extends Phaser.GameObjects.Container {
             0x000000, 0.7
         );
         
-        // Create a victory panel - smaller for mobile devices
+        // Create a smaller victory panel
         const isMobile = cameraWidth < 768;
-        const panelWidth = isMobile ? Math.min(300, cameraWidth * 0.7) : Math.min(400, cameraWidth * 0.8);
-        const panelHeight = isMobile ? 180 : 200;
+        const panelWidth = isMobile ? Math.min(240, cameraWidth * 0.6) : Math.min(300, cameraWidth * 0.7);
+        const panelHeight = isMobile ? 120 : 140;
         const panel = this.scene.add.rectangle(
             cameraWidth / 2, 
             cameraHeight / 2,
@@ -190,23 +200,17 @@ export class LevelEndTrigger extends Phaser.GameObjects.Container {
         );
         panel.setStrokeStyle(2, 0xffffff, 0.8);
         
-        // Add victory text ("Pergalė!") - smaller font for mobile
-        const fontSize = isMobile ? '36px' : '48px';
-        const completeText = this.scene.add.text(cameraWidth / 2, cameraHeight / 2 - 30, 'Pergalė!', {
+        // Add victory text and trophy icon inline
+        const fontSize = isMobile ? '32px' : '40px';
+        const completeText = this.scene.add.text(cameraWidth / 2, cameraHeight / 2, 'Pergalė! 🏆', {
             fontSize: fontSize,
             color: '#ffffff',
             fontStyle: 'bold',
             fontFamily: 'Arial, sans-serif'
         }).setOrigin(0.5);
         
-        // Add a star or trophy icon
-        const iconSize = isMobile ? '32px' : '40px';
-        const starIcon = this.scene.add.text(cameraWidth / 2, cameraHeight / 2 + 20, '🏆', {
-            fontSize: iconSize
-        }).setOrigin(0.5);
-        
-        // Add all elements to the container - no button anymore
-        this.levelCompleteOverlay.add([bg, panel, completeText, starIcon]);
+        // Add all elements to the container
+        this.levelCompleteOverlay.add([bg, panel, completeText]);
         
         // Make sure the overlay stays fixed to the camera and is on top of everything
         this.levelCompleteOverlay.setDepth(1000);

@@ -64,6 +64,8 @@ function initializeGame() {
                 // Set the container dimensions immediately to avoid layout issues
                 gameContainer.style.width = '100%';
                 gameContainer.style.height = '100%';
+                gameContainer.style.boxSizing = 'border-box';
+                gameContainer.style.overflow = 'hidden';
                 
                 // Check if we're on mobile
                 const isMobile = window.innerWidth < 768 || ('ontouchstart' in window || navigator.maxTouchPoints > 0);
@@ -75,30 +77,55 @@ function initializeGame() {
                 // Make the game instance globally available
                 window.phaserGame = game;
                 
-                // More responsive resize handling
-                const handleResize = () => {
+                // More responsive resize handling with multiple attempts for mobile
+                const handleResize = (isOrientationChange = false) => {
                     if (game && game.isBooted) {
                         // Get the container's computed dimensions
                         const containerWidth = gameContainer.clientWidth;
                         const containerHeight = gameContainer.clientHeight;
                         
-                        console.log(`Resizing game to match container: ${containerWidth}x${containerHeight}`);
-                        
-                        // Force a resize of the game
-                        game.scale.resize(containerWidth, containerHeight);
-                        game.scale.refresh();
+                        // Only proceed if we have valid dimensions
+                        if (containerWidth > 0 && containerHeight > 0) {
+                            console.log(`Resizing game to match container: ${containerWidth}x${containerHeight}`);
+                            
+                            // Force a resize of the game
+                            game.scale.resize(containerWidth, containerHeight);
+                            game.scale.refresh();
+                            
+                            // For orientation changes, we need multiple resize attempts
+                            // as the browser might report intermediate dimensions during the change
+                            if (isOrientationChange) {
+                                // Schedule additional resize attempts with increasing delays
+                                [100, 300, 500, 1000].forEach(delay => {
+                                    setTimeout(() => {
+                                        const newWidth = gameContainer.clientWidth;
+                                        const newHeight = gameContainer.clientHeight;
+                                        
+                                        if (newWidth !== containerWidth || newHeight !== containerHeight) {
+                                            console.log(`Additional resize after ${delay}ms: ${newWidth}x${newHeight}`);
+                                            game.scale.resize(newWidth, newHeight);
+                                            game.scale.refresh();
+                                        }
+                                    }, delay);
+                                });
+                            }
+                        } else {
+                            console.log('Skipping resize - invalid container dimensions');
+                            // Try again shortly
+                            setTimeout(() => handleResize(isOrientationChange), 100);
+                        }
                     }
                 };
                 
                 // Use both resize and orientationchange events
-                window.addEventListener('resize', handleResize);
+                window.addEventListener('resize', () => handleResize(false));
                 window.addEventListener('orientationchange', () => {
-                    // Delay the resize handling slightly after orientation change
-                    setTimeout(handleResize, 200);
+                    // Handle orientation change with multiple resize attempts
+                    handleResize(true);
                 });
                 
                 // Initial sizing
-                setTimeout(handleResize, 100);
+                setTimeout(() => handleResize(false), 100);
                 
                 console.log('Phaser game instance created successfully.');
             } catch (error) {

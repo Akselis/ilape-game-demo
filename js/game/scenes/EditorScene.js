@@ -9,6 +9,11 @@ import { PlayerTool } from '../tools/PlayerTool.js';
 import { saveStateToStorage, loadStateFromStorage } from '../../utils/cookieManager.js';
 
 export class EditorScene extends Phaser.Scene {
+    // Helper method to detect mobile devices more accurately using user agent
+    isMobileDevice() {
+        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    }
+    
     constructor() {
         super({ key: 'EditorScene' });
         this.isPreviewMode = false;
@@ -19,6 +24,7 @@ export class EditorScene extends Phaser.Scene {
         this.isDraggingMinimap = false; // Track if user is dragging the minimap
         this.twoFingerScrolling = false; // Track if user is using two-finger scrolling
         this.twoFingerStartX = 0; // Starting X position for two-finger scrolling
+        this.isVictoryPopupShown = false; // Track if victory popup is currently shown
     }
     
     create() {
@@ -66,7 +72,7 @@ export class EditorScene extends Phaser.Scene {
         console.log('Resize handler registered');
         
         // Create ground - position it near the bottom but fully visible
-        const ground = new Block(this, this.levelWidth/2, this.levelHeight + 50, this.levelWidth, 50);
+        const ground = new Block(this, this.levelWidth/2, this.levelHeight - 80, this.levelWidth, 40);
         ground.setInteractive(false);
         ground.resizeHandles.forEach(handle => handle.destroy());
         ground.deleteButton.destroy();
@@ -297,7 +303,8 @@ export class EditorScene extends Phaser.Scene {
         
         if (this.isPreviewMode) {
             // Save current state to both memory and storage
-            this.savedState = this.saveState();
+            // Deep clone the state to prevent reference issues
+            this.savedState = JSON.parse(JSON.stringify(this.saveState()));
             saveStateToStorage(this.savedState);
             
             // Show touch controls in preview mode
@@ -342,7 +349,7 @@ export class EditorScene extends Phaser.Scene {
                     if (block.isGround) {
                         // Set the size and offset manually to match the block's dimensions
                         // Use the actual height of the ground block (100px as per your change)
-                        block.body.setSize(this.levelWidth, 50);
+                        block.body.setSize(this.levelWidth, 40);
                         // Adjust offset to match the new position (levelHeight + 100)
                         // For containers, the offset is relative to the container's center
                         console.log('Ground physics body configured with fixed dimensions');
@@ -374,16 +381,23 @@ export class EditorScene extends Phaser.Scene {
                 // Add collision with blocks
                 this.physics.add.collider(this.player, this.blocks);
                 
+                // Check if player is inside any block and move them to a safe position
+                this.checkAndFixPlayerPosition();
+                
                 // Add collision with level end triggers
                 this.triggers.getChildren().forEach(trigger => {
-                    // Enable physics for trigger
+                    // Enable physics for trigger as a sensor (no solid collision)
                     if (trigger.body) {
                         trigger.body.enable = true;
+                        // Make the body a sensor so it doesn't block the player
+                        trigger.body.isSensor = true;
                         // Update the body position to match the trigger's current position
                         trigger.body.position.x = trigger.x - trigger.body.width / 2;
                         trigger.body.position.y = trigger.y - trigger.body.height / 2;
                     } else {
                         this.physics.add.existing(trigger);
+                        // Make the body a sensor so it doesn't block the player
+                        trigger.body.isSensor = true;
                     }
                     
                     // Add overlap detection
@@ -438,8 +452,34 @@ export class EditorScene extends Phaser.Scene {
                 this.boundaryWalls = null;
             }
             
+            // Clean up any physics bodies to prevent duplication issues
+            this.blocks.getChildren().forEach(block => {
+                if (block.body) {
+                    // Destroy the physics body but keep the game object
+                    this.physics.world.remove(block.body);
+                    block.body = null;
+                }
+            });
+            
+            this.triggers.getChildren().forEach(trigger => {
+                if (trigger.body) {
+                    // Destroy the physics body but keep the game object
+                    this.physics.world.remove(trigger.body);
+                    trigger.body = null;
+                }
+            });
+            
+            if (this.player && this.player.body) {
+                this.physics.world.remove(this.player.body);
+                this.player.body = null;
+            }
+            
             // Restore saved state
             if (this.savedState) {
+                // Clear all existing objects first to prevent duplication
+                this.cleanupAllObjects();
+                
+                // Now restore from saved state
                 this.restoreState(this.savedState);
                 this.savedState = null;
             }
@@ -498,6 +538,9 @@ export class EditorScene extends Phaser.Scene {
         if (this.player && this.isPreviewMode) {
             // Pass time and delta to the player update method
             this.player.update(time, delta);
+            
+            // Check if player is outside level boundaries and teleport them back inside
+            this.checkAndFixPlayerBoundaries();
         }
         
         // Update moving clouds
@@ -567,6 +610,14 @@ export class EditorScene extends Phaser.Scene {
     
     onPointerDown(pointer) {
         if (!this.isPreviewMode) {
+            // Check if the pointer is over the minimap or minimap camera
+            if (this.minimapHitArea && this.minimapHitArea.getBounds().contains(pointer.x, pointer.y)) {
+                // Set a flag to indicate minimap interaction is in progress
+                this.minimapInteractionInProgress = true;
+                // Don't process any other pointer events for this click
+                return;
+            }
+            
             // Direct access to active tool for faster response
             const activeTool = Object.values(this.tools).find(tool => tool.active);
             if (activeTool) {
@@ -899,37 +950,58 @@ export class EditorScene extends Phaser.Scene {
      * @param {number} resolution - The resolution
      */
     handleResize(gameSize, baseSize, displaySize, resolution) {
+        // Get the game container element
+        const gameContainer = document.getElementById('phaser-game');
+        
         // Skip resize handling during view transitions or when scene is not active
         // This prevents issues when switching between game and editor views
-        if (!this.scene.isActive() || document.getElementById('phaser-game').offsetWidth === 0) {
+        if (!this.scene.isActive() || (gameContainer && gameContainer.offsetWidth === 0)) {
             console.log('Skipping resize for inactive or hidden EditorScene');
             return;
         }
         
+        // Reduce debounce time for mobile to be more responsive
+        const debounceTime = 300; // Reduced from 500ms to 300ms
+        
         // Skip resize handling when switching between views
         // This is a critical fix to prevent the ground collider from moving
-        if (this._lastResizeTime && Date.now() - this._lastResizeTime < 500) {
+        if (this._lastResizeTime && Date.now() - this._lastResizeTime < debounceTime) {
             console.log('Skipping resize - too soon after last resize');
             return;
         }
         this._lastResizeTime = Date.now();
         
+        // Get actual dimensions from the container rather than relying solely on the passed parameters
+        // This helps with mobile browsers that might report incorrect dimensions during transitions
+        const containerWidth = gameContainer ? gameContainer.clientWidth : displaySize.width;
+        const containerHeight = gameContainer ? gameContainer.clientHeight : displaySize.height;
+        
+        // Use the most reliable dimensions available
+        const width = Math.max(containerWidth, displaySize.width);
+        const height = Math.max(containerHeight, displaySize.height);
+        
         console.log('Resize handler called', { 
-            width: displaySize.width, 
-            height: displaySize.height,
-            active: this.scene.isActive(),
-            visible: document.getElementById('phaser-game').offsetWidth > 0
+            displayWidth: displaySize.width, 
+            displayHeight: displaySize.height,
+            containerWidth: containerWidth,
+            containerHeight: containerHeight,
+            finalWidth: width,
+            finalHeight: height,
+            active: this.scene.isActive()
         });
         
         // Update camera bounds to match new height while maintaining level width
-        this.levelHeight = displaySize.height;
+        this.levelHeight = height;
         this.cameras.main.setBounds(0, 0, this.levelWidth, this.levelHeight);
         
         // Find and reposition the ground
         const ground = this.blocks.getChildren().find(block => block.isGround);
         if (ground) {
-            // Position ground below the bottom of the screen as per your new position
-            ground.y = this.levelHeight - 100; // 100px below the bottom of the screen
+            // Position ground exactly at the bottom of the screen on mobile
+            // The constant offset might be causing the gap on mobile devices
+            // Use our more accurate mobile detection helper method
+            const isMobile = this.isMobileDevice();
+            ground.y = this.levelHeight - (isMobile ? 40 : 80); // Less offset on mobile devices
             
             // For containers like Block, we need to update the rectangle inside
             if (ground.rectangle) {
@@ -942,7 +1014,6 @@ export class EditorScene extends Phaser.Scene {
                 const originalY = ground.y;
                 
                 // Manually update the physics body with fixed dimensions
-                // Use the actual height of the ground block (100px)
                 ground.body.setSize(this.levelWidth, 50);
                 
                 // Ensure the ground position hasn't changed
@@ -951,6 +1022,40 @@ export class EditorScene extends Phaser.Scene {
                 console.log('Ground repositioned to:', ground.y);
             }
         }
+        
+        // Schedule a second resize check after a short delay to catch any dimension changes
+        // that might have happened during the resize operation (especially on mobile)
+        setTimeout(() => {
+            if (this.scene && this.scene.isActive()) {
+                const newContainerWidth = gameContainer ? gameContainer.clientWidth : displaySize.width;
+                const newContainerHeight = gameContainer ? gameContainer.clientHeight : displaySize.height;
+                
+                // Only perform the second resize if dimensions have changed
+                if (newContainerWidth !== containerWidth || newContainerHeight !== containerHeight) {
+                    console.log('Secondary resize check - dimensions changed:', {
+                        width: newContainerWidth,
+                        height: newContainerHeight
+                    });
+                    
+                    // Update camera and level height
+                    this.levelHeight = newContainerHeight;
+                    this.cameras.main.setBounds(0, 0, this.levelWidth, this.levelHeight);
+                    
+                    // Reposition ground again if needed
+                    if (ground) {
+                        // Use our more accurate mobile detection helper method
+                        const isMobile = this.isMobileDevice();
+                        ground.y = this.levelHeight - (isMobile ? 40 : 80); // Less offset on mobile devices
+                        if (ground.rectangle) {
+                            ground.rectangle.width = this.levelWidth;
+                        }
+                        if (ground.body) {
+                            ground.body.setSize(this.levelWidth, 50);
+                        }
+                    }
+                }
+            }
+        }, 100);
         
         // Update boundary walls if they exist
         if (this.boundaryWalls) {
@@ -980,12 +1085,15 @@ export class EditorScene extends Phaser.Scene {
         }
         
         // Reposition touch controls if they exist
-        if (this.isTouchDevice && this.touchControlsContainer) {
+        if (this.touchControlsContainer) {
             // Adjust touch control positions based on new screen size
             this.leftButton.style.bottom = `${displaySize.height * 0.2}px`;
             this.rightButton.style.bottom = `${displaySize.height * 0.2}px`;
             this.jumpButton.style.bottom = `${displaySize.height * 0.2}px`;
-            this.jumpButton.style.right = `${displaySize.width * 0.1}px`;
+            this.jumpButton.style.right = `${displaySize.width * 0.2}px`;
+            // Include the down button in repositioning
+            this.downButton.style.bottom = `${displaySize.height * 0.2}px`;
+            this.downButton.style.right = `${displaySize.width * 0.1}px`;
         }
     }
     
@@ -1028,6 +1136,12 @@ export class EditorScene extends Phaser.Scene {
         this.jumpButton.innerHTML = '↑';
         this.touchControlsContainer.appendChild(this.jumpButton);
         
+        // Create down button
+        this.downButton = document.createElement('div');
+        this.downButton.className = 'touch-button touch-down';
+        this.downButton.innerHTML = '↓';
+        this.touchControlsContainer.appendChild(this.downButton);
+        
         // Set up touch event listeners
         this.setupTouchListeners();
     }
@@ -1040,7 +1154,8 @@ export class EditorScene extends Phaser.Scene {
         this.touchControls = {
             left: false,
             right: false,
-            jump: false
+            jump: false,
+            down: false
         };
         
         // Left button - touch events
@@ -1100,6 +1215,25 @@ export class EditorScene extends Phaser.Scene {
             this.touchControls.jump = false;
         });
         
+        // Down button - touch events
+        this.downButton.addEventListener('touchstart', () => {
+            this.touchControls.down = true;
+        });
+        this.downButton.addEventListener('touchend', () => {
+            this.touchControls.down = false;
+        });
+        
+        // Add mouse events for desktop debugging
+        this.downButton.addEventListener('mousedown', () => {
+            this.touchControls.down = true;
+        });
+        this.downButton.addEventListener('mouseup', () => {
+            this.touchControls.down = false;
+        });
+        this.downButton.addEventListener('mouseleave', () => {
+            this.touchControls.down = false;
+        });
+        
         console.log('Touch controls are now enabled for desktop debugging');
     }
     
@@ -1130,7 +1264,7 @@ export class EditorScene extends Phaser.Scene {
         // Create container for minimap elements
         this.minimap = this.add.container(gameWidth / 2, 30);
         this.minimap.setScrollFactor(0); // Fix to camera
-        this.minimap.setDepth(100); // Ensure it's on top of everything
+        this.minimap.setDepth(1000); // Ensure it's on top of everything with a very high depth value
         
         // Create background for minimap
         const background = this.add.rectangle(0, 0, minimapWidth, minimapHeight, 0x333333, 0.7);
@@ -1166,14 +1300,54 @@ export class EditorScene extends Phaser.Scene {
             0 // Fully transparent
         );
         this.minimapHitArea.setScrollFactor(0); // Fix to camera like the minimap
-        this.minimapHitArea.setInteractive({ cursor: 'pointer' }); // Set cursor to pointer when hovering
-        this.minimapHitArea.setDepth(101); // Above the minimap for interaction
+        this.minimapHitArea.setInteractive({ cursor: 'pointer', useHandCursor: true }); // Set cursor to pointer when hovering
+        this.minimapHitArea.setDepth(1001); // Above the minimap for interaction with very high depth value
         
         // Make the camera indicator draggable as well
-        this.minimapCamera.setInteractive({ cursor: 'pointer' });
-        this.minimapCamera.setDepth(102); // Above everything for interaction
+        // Use a slightly larger hit area to make it easier to grab
+        this.minimapCamera.setInteractive({ cursor: 'pointer', useHandCursor: true, hitArea: new Phaser.Geom.Rectangle(-this.minimapCamera.width/2 - 5, -this.minimapCamera.height/2 - 5, this.minimapCamera.width + 10, this.minimapCamera.height + 10), hitAreaCallback: Phaser.Geom.Rectangle.Contains });
+        this.minimapCamera.setDepth(1002); // Above everything for interaction with very high depth value
         
-        // Store reference to existing event listeners so we can remove them when recreating the minimap
+        // First set up the camera indicator drag functionality (should take precedence)
+        if (this.minimapCameraPointerDownListener) {
+            this.minimapCamera.off('pointerdown', this.minimapCameraPointerDownListener);
+        }
+        
+        this.minimapCameraPointerDownListener = (pointer) => {
+            if (this.isPreviewMode) return;
+            
+            // Stop event propagation to prevent it from reaching the minimap hit area
+            if (pointer.event) {
+                pointer.event.stopPropagation();
+            }
+            
+            // Completely deselect any selected object when using the minimap camera
+            if (this.tools.selector && this.tools.selector.selectedObject) {
+                this.tools.selector.selectedObject.setSelected(false);
+                this.tools.selector.selectedObject = null;
+                this.tools.selector.dragStartPos = null;
+            }
+            
+            // Start dragging the camera indicator
+            this.isDraggingMinimapCamera = true;
+            
+            // Calculate the relative position of the pointer within the camera indicator
+            // This is used to maintain the same relative position when dragging
+            const minimapCameraBounds = this.minimapCamera.getBounds();
+            this.dragOffsetX = pointer.x - minimapCameraBounds.centerX;
+            this.dragStartScrollX = this.cameras.main.scrollX;
+            
+            // Prevent any other objects from being selected during this click
+            this.minimapInteractionInProgress = true;
+            
+            // Prevent the minimap background click handler from running
+            pointer.handled = true;
+        };
+        
+        // Add the camera indicator drag handler first (higher priority)
+        this.minimapCamera.on('pointerdown', this.minimapCameraPointerDownListener);
+        
+        // Then set up the minimap background click handler
         if (this.minimapPointerDownListener) {
             if (this.minimapHitArea) {
                 this.minimapHitArea.off('pointerdown', this.minimapPointerDownListener);
@@ -1182,31 +1356,31 @@ export class EditorScene extends Phaser.Scene {
         
         // Create new listener and store reference
         this.minimapPointerDownListener = (pointer) => {
-            if (this.isPreviewMode) return;
+            // Skip if this event was already handled by the camera indicator
+            if (pointer.handled || this.isPreviewMode) return;
             
+            // Stop event propagation to prevent it from reaching objects behind the minimap
+            if (pointer.event) {
+                pointer.event.stopPropagation();
+            }
+            
+            // Deselect any selected object when using the minimap
+            if (this.tools.selector && this.tools.selector.selectedObject) {
+                this.tools.selector.selectedObject.setSelected(false);
+                this.tools.selector.selectedObject = null;
+                this.tools.selector.dragStartPos = null;
+            }
+            
+            // Prevent any other objects from being selected during this click
+            this.minimapInteractionInProgress = true;
+            
+            // When clicking on the minimap background, immediately teleport the camera indicator to that position
             this.isDraggingMinimap = true;
             this.updateMinimapCameraPosition(pointer.x);
         };
         
-        // Add drag functionality to minimap hit area
+        // Add drag functionality to minimap hit area (lower priority)
         this.minimapHitArea.on('pointerdown', this.minimapPointerDownListener);
-        
-        // Add drag functionality to camera indicator
-        if (this.minimapCameraPointerDownListener) {
-            this.minimapCamera.off('pointerdown', this.minimapCameraPointerDownListener);
-        }
-        
-        this.minimapCameraPointerDownListener = (pointer) => {
-            if (this.isPreviewMode) return;
-            
-            // Start dragging the camera indicator
-            this.isDraggingMinimapCamera = true;
-            this.dragStartX = pointer.x;
-            this.dragStartScrollX = this.cameras.main.scrollX;
-            
-            // Prevent event from bubbling to the hit area
-            pointer.event.stopPropagation();
-        };
         
         this.minimapCamera.on('pointerdown', this.minimapCameraPointerDownListener);
         
@@ -1225,22 +1399,20 @@ export class EditorScene extends Phaser.Scene {
                 // Dragging the background - update camera position directly
                 this.updateMinimapCameraPosition(pointer.x);
             } else if (this.isDraggingMinimapCamera && !this.isPreviewMode) {
-                // Dragging the camera indicator - calculate the drag distance
-                const deltaX = pointer.x - this.dragStartX;
+                // When dragging the camera indicator, account for the offset to maintain
+                // the same relative position of the pointer within the indicator
+                const adjustedPointerX = pointer.x - this.dragOffsetX;
                 
-                // Convert screen delta to world delta (based on minimap scale)
-                const minimapScale = this.minimapHitArea.width / this.levelWidth;
-                const worldDeltaX = deltaX / minimapScale;
+                // Get minimap hit area bounds
+                const minimapWidth = this.minimapHitArea.width;
+                const minimapLeft = this.minimapHitArea.x - minimapWidth / 2;
                 
-                // Calculate new scroll position
-                const newScrollX = Phaser.Math.Clamp(
-                    this.dragStartScrollX + worldDeltaX,
-                    0,
-                    this.levelWidth - this.cameras.main.width
-                );
+                // Calculate relative position within minimap (0 to 1)
+                const relativeX = Phaser.Math.Clamp((adjustedPointerX - minimapLeft) / minimapWidth, 0, 1);
                 
-                // Update camera position
-                this.cameras.main.scrollX = newScrollX;
+                // Convert to level position and scroll camera
+                const targetScrollX = relativeX * (this.levelWidth - this.cameras.main.width);
+                this.cameras.main.scrollX = targetScrollX;
                 
                 // Update minimap camera indicator
                 this.updateMinimapCamera();
@@ -1250,6 +1422,12 @@ export class EditorScene extends Phaser.Scene {
         this.minimapUpListener = () => {
             this.isDraggingMinimap = false;
             this.isDraggingMinimapCamera = false;
+            
+            // Reset the minimap interaction flag after a short delay
+            // This ensures that any click events that might still be processing won't select objects
+            setTimeout(() => {
+                this.minimapInteractionInProgress = false;
+            }, 50);
         };
         
         // Add global listeners
@@ -1312,6 +1490,311 @@ export class EditorScene extends Phaser.Scene {
         // Calculate position within minimap
         const minimapX = (relativeX - 0.5) * (minimapWidth - this.minimapCamera.width);
         this.minimapCamera.x = minimapX;
+    }
+    
+    /**
+     * Check if the player is inside any block and move them to a safe position
+     * This prevents the player from getting stuck inside blocks when preview mode starts
+     */
+    checkAndFixPlayerPosition() {
+        if (!this.player || !this.player.body) return;
+        
+        // Store the player's current position
+        const playerX = this.player.x;
+        const playerY = this.player.y;
+        const playerRadius = this.player.body.radius;
+        
+        // Flag to track if player is inside any block
+        let isInsideBlock = false;
+        let overlappingBlock = null;
+        
+        // Check collision with all blocks
+        this.blocks.getChildren().forEach(block => {
+            if (!block.body) return;
+            
+            // Get block bounds
+            const blockBounds = {
+                left: block.x - block.rectangle.width / 2,
+                right: block.x + block.rectangle.width / 2,
+                top: block.y - block.rectangle.height / 2,
+                bottom: block.y + block.rectangle.height / 2
+            };
+            
+            // Check if player is inside this block
+            if (playerX + playerRadius > blockBounds.left && 
+                playerX - playerRadius < blockBounds.right && 
+                playerY + playerRadius > blockBounds.top && 
+                playerY - playerRadius < blockBounds.bottom) {
+                
+                isInsideBlock = true;
+                overlappingBlock = block;
+                console.log('Player is inside a block!', blockBounds);
+            }
+        });
+        
+        // If player is inside a block, move them to the nearest edge
+        if (isInsideBlock && overlappingBlock) {
+            console.log('Moving player out of block...');
+            
+            // Calculate distances to each edge of the block
+            const blockBounds = {
+                left: overlappingBlock.x - overlappingBlock.rectangle.width / 2,
+                right: overlappingBlock.x + overlappingBlock.rectangle.width / 2,
+                top: overlappingBlock.y - overlappingBlock.rectangle.height / 2,
+                bottom: overlappingBlock.y + overlappingBlock.rectangle.height / 2
+            };
+            
+            // Calculate distance to each edge (accounting for player radius)
+            const distToLeft = Math.abs(playerX - blockBounds.left) + playerRadius;
+            const distToRight = Math.abs(playerX - blockBounds.right) + playerRadius;
+            const distToTop = Math.abs(playerY - blockBounds.top) + playerRadius;
+            const distToBottom = Math.abs(playerY - blockBounds.bottom) + playerRadius;
+            
+            // Find the shortest distance
+            const minDist = Math.min(distToLeft, distToRight, distToTop, distToBottom);
+            
+            // Move player to the nearest edge with a small buffer
+            const buffer = 2; // Small buffer to ensure player is fully outside
+            
+            if (minDist === distToLeft) {
+                this.player.x = blockBounds.left - playerRadius - buffer;
+            } else if (minDist === distToRight) {
+                this.player.x = blockBounds.right + playerRadius + buffer;
+            } else if (minDist === distToTop) {
+                this.player.y = blockBounds.top - playerRadius - buffer;
+            } else { // Bottom
+                this.player.y = blockBounds.bottom + playerRadius + buffer;
+            }
+            
+            // Reset velocity to prevent bouncing
+            this.player.body.velocity.x = 0;
+            this.player.body.velocity.y = 0;
+            
+            // Check if the new position is also inside another block
+            // If so, try to find a completely free position
+            this.findSafePosition();
+        }
+    }
+    
+    /**
+     * Check if the player is outside level boundaries and teleport them back inside
+     * This prevents the player from falling out of the world
+     */
+    checkAndFixPlayerBoundaries() {
+        if (!this.player || !this.player.body) return;
+        
+        // Get player position and radius
+        const playerX = this.player.x;
+        const playerY = this.player.y;
+        const playerRadius = this.player.body.radius;
+        
+        // Find the ground block to handle the bottom boundary specially
+        let groundBlock = null;
+        this.blocks.getChildren().forEach(block => {
+            if (block.isGround) {
+                groundBlock = block;
+            }
+        });
+        
+        // Define level boundaries with a small buffer
+        const buffer = 5;
+        const levelBounds = {
+            left: 0 + playerRadius + buffer,
+            right: this.levelWidth - playerRadius - buffer,
+            top: 0 + playerRadius + buffer,
+            // For the bottom boundary, we'll use the level height plus a large buffer
+            // This allows the player to stand on and jump from the ground block
+            // but still catches them if they fall far below the level
+            bottom: this.levelHeight + 100 // Allow falling a bit below before teleporting back
+        };
+        
+        // If we have a ground block, we'll use a more sophisticated check for the bottom boundary
+        let groundY = groundBlock ? groundBlock.y + groundBlock.rectangle.height/2 : this.levelHeight;
+        
+        let needsRepositioning = false;
+        let newX = playerX;
+        let newY = playerY;
+        
+        // Check if player is outside horizontal boundaries
+        if (playerX < levelBounds.left) {
+            newX = levelBounds.left;
+            needsRepositioning = true;
+            console.log('Player outside left boundary, teleporting back');
+        } else if (playerX > levelBounds.right) {
+            newX = levelBounds.right;
+            needsRepositioning = true;
+            console.log('Player outside right boundary, teleporting back');
+        }
+        
+        // Check if player is outside vertical boundaries
+        if (playerY < levelBounds.top) {
+            newY = levelBounds.top;
+            needsRepositioning = true;
+            console.log('Player outside top boundary, teleporting back');
+        } else if (playerY > levelBounds.bottom) {
+            // For bottom boundary, place player above the ground
+            // We place them at a safe position above the ground block
+            if (groundBlock) {
+                newY = groundBlock.y - groundBlock.rectangle.height/2 - playerRadius - buffer;
+            } else {
+                newY = this.levelHeight - playerRadius - buffer;
+            }
+            needsRepositioning = true;
+            console.log('Player fell below level, teleporting above ground');
+        }
+        
+        // If player is outside boundaries, teleport them back inside
+        if (needsRepositioning) {
+            // Set new position
+            this.player.x = newX;
+            this.player.y = newY;
+            
+            // Reset velocity to prevent bouncing or continued momentum
+            this.player.body.velocity.x = 0;
+            this.player.body.velocity.y = 0;
+        }
+    }
+    
+    /**
+     * Clean up all objects in the scene to prevent duplication
+     * This is used before restoring state when exiting preview mode
+     */
+    cleanupAllObjects() {
+        console.log('Cleaning up all objects to prevent duplication');
+        
+        // Remove all blocks except the ground
+        const blocksToRemove = [];
+        this.blocks.getChildren().forEach(block => {
+            if (!block.isGround) {
+                blocksToRemove.push(block);
+            }
+        });
+        
+        // Remove blocks outside the loop to avoid modifying the array while iterating
+        blocksToRemove.forEach(block => block.destroy());
+        
+        // Remove all triggers
+        this.triggers.getChildren().forEach(trigger => trigger.destroy());
+        
+        // Remove player if it exists
+        if (this.player) {
+            this.player.destroy();
+            this.player = null;
+        }
+    }
+    
+    /**
+     * Find a completely safe position for the player if they're still inside blocks
+     * This handles cases where multiple blocks overlap
+     */
+    findSafePosition() {
+        if (!this.player || !this.player.body) return;
+        
+        // Check if player is still inside any block after the first fix
+        let stillInsideBlock = false;
+        
+        // Store the player's current position
+        const playerX = this.player.x;
+        const playerY = this.player.y;
+        const playerRadius = this.player.body.radius;
+        
+        this.blocks.getChildren().forEach(block => {
+            if (!block.body) return;
+            
+            // Get block bounds
+            const blockBounds = {
+                left: block.x - block.rectangle.width / 2,
+                right: block.x + block.rectangle.width / 2,
+                top: block.y - block.rectangle.height / 2,
+                bottom: block.y + block.rectangle.height / 2
+            };
+            
+            // Check if player is inside this block
+            if (playerX + playerRadius > blockBounds.left && 
+                playerX - playerRadius < blockBounds.right && 
+                playerY + playerRadius > blockBounds.top && 
+                playerY - playerRadius < blockBounds.bottom) {
+                
+                stillInsideBlock = true;
+            }
+        });
+        
+        // If player is still inside a block, find a completely free position
+        if (stillInsideBlock) {
+            console.log('Player is still inside blocks, finding completely free position...');
+            
+            // Try to find a free position by scanning outward from the player's original position
+            const scanRadius = 200; // How far to scan for a free position
+            const scanStep = 20; // Step size for scanning
+            
+            // Try positions in a spiral pattern
+            let foundSafePosition = false;
+            let spiralX = 0;
+            let spiralY = 0;
+            let spiralRadius = scanStep;
+            let spiralAngle = 0;
+            
+            while (!foundSafePosition && spiralRadius <= scanRadius) {
+                // Calculate position in spiral
+                spiralX = playerX + spiralRadius * Math.cos(spiralAngle);
+                spiralY = playerY + spiralRadius * Math.sin(spiralAngle);
+                
+                // Check if this position is free
+                let positionIsFree = true;
+                
+                this.blocks.getChildren().forEach(block => {
+                    if (!block.body) return;
+                    
+                    // Get block bounds
+                    const blockBounds = {
+                        left: block.x - block.rectangle.width / 2,
+                        right: block.x + block.rectangle.width / 2,
+                        top: block.y - block.rectangle.height / 2,
+                        bottom: block.y + block.rectangle.height / 2
+                    };
+                    
+                    // Check if test position is inside this block
+                    if (spiralX + playerRadius > blockBounds.left && 
+                        spiralX - playerRadius < blockBounds.right && 
+                        spiralY + playerRadius > blockBounds.top && 
+                        spiralY - playerRadius < blockBounds.bottom) {
+                        
+                        positionIsFree = false;
+                    }
+                });
+                
+                // If position is free, move player there
+                if (positionIsFree) {
+                    foundSafePosition = true;
+                    this.player.x = spiralX;
+                    this.player.y = spiralY;
+                    console.log('Found safe position at', spiralX, spiralY);
+                    
+                    // Reset velocity
+                    this.player.body.velocity.x = 0;
+                    this.player.body.velocity.y = 0;
+                    break;
+                }
+                
+                // Increment spiral
+                spiralAngle += Math.PI / 8; // 22.5 degrees
+                if (spiralAngle >= Math.PI * 2) { // Full circle
+                    spiralAngle = 0;
+                    spiralRadius += scanStep;
+                }
+            }
+            
+            // If no safe position found, place player at the top center of the level
+            if (!foundSafePosition) {
+                console.log('No safe position found, placing player at top center');
+                this.player.x = this.levelWidth / 2;
+                this.player.y = 100; // Near the top of the level
+                
+                // Reset velocity
+                this.player.body.velocity.x = 0;
+                this.player.body.velocity.y = 0;
+            }
+        }
     }
     
     // Handle touch move events for pinch-to-zoom and two-finger scrolling

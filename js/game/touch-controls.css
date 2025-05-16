@@ -5,7 +5,7 @@
   height: 60px;
   background-color: rgba(45, 45, 45, 0.76);
   border-radius: 50%;
-  position: absolute;
+  position: fixed; /* Changed from absolute to fixed for better positioning during resize */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -16,6 +16,7 @@
   -webkit-tap-highlight-color: transparent;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
   z-index: 1000;
+  transform: translate3d(0, 0, 0); /* Force hardware acceleration */
 }
 
 .touch-button:active {
@@ -25,17 +26,22 @@
 
 .touch-left {
   left: 10vw;
-  top: 50vh; /* Reduced from 60vh to 50vh to prevent clipping */
+  bottom: 20vh; /* Position from bottom instead of top for better mobile experience */
 }
 
 .touch-right {
   left: 20vw;
-  top: 50vh; /* Reduced from 60vh to 50vh to prevent clipping */
+  bottom: 20vh; /* Position from bottom instead of top */
 }
 
 .touch-jump {
-  left: 70vw;
-  top: 50vh; /* Reduced from 60vh to 50vh to prevent clipping */
+  left: 70vw; /* Position from right instead of left */
+  bottom: 20vh; /* Position from bottom instead of top */
+}
+
+.touch-down {
+  left: 80vw; /* Position from right instead of left */
+  bottom: 20vh; /* Position from bottom instead of top */
 }
 
 .touch-joystick-container {
