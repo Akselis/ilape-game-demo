@@ -1,0 +1,33 @@
+config:
+  target: "http://localhost:3000"
+  phases:
+    - duration: 30
+      arrivalRate: 10
+      name: "Warm up"
+    - duration: 60
+      arrivalRate: 20
+      rampTo: 60
+      name: "Ramp up"
+    - duration: 120
+      arrivalRate: 60
+      name: "Target load"
+  defaults:
+    headers:
+      user-agent: "Artillery Load Test"
+  processor: "./custom-load-test.js"
+
+scenarios:
+  - name: "Visit game and interact"
+    flow:
+      - function: "setupFn"
+      - get:
+          url: "/"
+      - think: 10
+      - get:
+          url: "/js/main.jsx"
+      - think: 5
+      - function: "simulateGameInteraction"
+      - think: 3
+      - function: "simulateAssetLoading"
+      - think: 5
+      - function: "reportMetrics"

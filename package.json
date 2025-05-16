@@ -4,9 +4,39 @@
     "description": "A level editor built with Phaser.js",
     "main": "server.js",
     "scripts": {
-        "start": "node server.js"
+        "start": "node server.js",
+        "dev": "vite",
+        "build": "vite build",
+        "load-test": "artillery run load-test.yml",
+        "load-test:report": "artillery run --output report.json load-test.yml && artillery report report.json"
     },
+    "license": "ISC",
     "dependencies": {
-        "express": "^4.18.2"
+        "@popperjs/core": "^2.11.8",
+        "bootstrap": "^5.3.3",
+        "es-module-shims": "^2.0.10",
+        "express": "^4.19.2",
+        "phaser": "^3.88.2",
+        "react": "^18.3.1",
+        "react-dom": "^18.3.1",
+        "rete": "^2.0.5",
+        "rete-area-plugin": "^2.0.5",
+        "rete-connection-plugin": "^2.0.5",
+        "rete-context-menu-plugin": "^2.0.6",
+        "rete-engine": "^2.0.0-beta.2",
+        "rete-react-plugin": "^2.0.3",
+        "rete-render-utils": "^2.0.3"
+    },
+    "devDependencies": {
+        "@types/react": "^19.1.1",
+        "@types/react-dom": "^19.1.2",
+        "@vitejs/plugin-react": "^4.3.1",
+        "artillery": "^2.0.22",
+        "typescript": "^5.8.3",
+        "vite": "^5.3.1"
+    },
+    "//COMMENTED_OUT_removed_dependencies": {
+        "@retejs/lit-plugin": "^2.0.2",
+        "lit": "^3.1.4"
     }
 }
