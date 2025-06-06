@@ -601,6 +601,18 @@ function App() {
                 </svg>
                 {!isMobile && <span style={{ marginLeft: '8px' }}>Žaidėjas</span>}
               </button>
+              
+              <button 
+                id="spike-tool"
+                style={toolButtonStyle('spike')} 
+                onClick={() => handleToolSelect('spike')}
+                title="Spike Tool"
+              >
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M10,4 L16,16 L4,16 Z" stroke="currentColor" strokeWidth="1.5" fill="none" />
+                </svg>
+                {!isMobile && <span style={{ marginLeft: '8px' }}>Spygliai</span>}
+              </button>
             </div>
             
             {/* Bottom section with save info and reset button */}

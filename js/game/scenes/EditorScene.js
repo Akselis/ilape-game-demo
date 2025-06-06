@@ -1,11 +1,14 @@
 import { Block } from '../gameObjects/Block.js';
 import { Player } from '../gameObjects/Player.js';
 import { LevelEndTrigger } from '../gameObjects/LevelEndTrigger.js';
+import { Spike } from '../gameObjects/Spike.js';
+import { DeathScreen } from '../gameObjects/DeathScreen.js';
 import { SelectorTool } from '../tools/SelectorTool.js';
 // MoverTool removed as requested
 import { BlockTool } from '../tools/BlockTool.js';
 import { TriggerTool } from '../tools/TriggerTool.js';
 import { PlayerTool } from '../tools/PlayerTool.js';
+import { SpikeTool } from '../tools/SpikeTool.js';
 import { saveStateToStorage, loadStateFromStorage } from '../../utils/cookieManager.js';
 
 export class EditorScene extends Phaser.Scene {
@@ -25,6 +28,8 @@ export class EditorScene extends Phaser.Scene {
         this.twoFingerScrolling = false; // Track if user is using two-finger scrolling
         this.twoFingerStartX = 0; // Starting X position for two-finger scrolling
         this.isVictoryPopupShown = false; // Track if victory popup is currently shown
+        this.isDeathPopupShown = false; // Track if death popup is currently shown
+        this.deathScreen = null; // Will hold the death screen
     }
     
     create() {
@@ -37,9 +42,10 @@ export class EditorScene extends Phaser.Scene {
         // Create a gradient sky background
         this.createSkyBackground();
         
-        // Create groups for blocks and triggers
+        // Create groups for blocks, triggers and spikes
         this.blocks = this.add.group();
         this.triggers = this.add.group();
+        this.spikes = this.add.group();
         
         // Create the minimap for level navigation
         this.createMinimap();
@@ -96,7 +102,8 @@ export class EditorScene extends Phaser.Scene {
             selector: new SelectorTool(this),
             block: new BlockTool(this),
             trigger: new TriggerTool(this),
-            player: new PlayerTool(this)
+            player: new PlayerTool(this),
+            spike: new SpikeTool(this)
         };
         
         // Set up input handlers
@@ -141,6 +148,7 @@ export class EditorScene extends Phaser.Scene {
         const state = {
             blocks: [],
             triggers: [],
+            spikes: [],
             player: null,
             camera: {
                 scrollX: this.cameras.main.scrollX,
@@ -171,6 +179,17 @@ export class EditorScene extends Phaser.Scene {
             });
         });
         
+        // Save spikes state
+        this.spikes.getChildren().forEach(spike => {
+            state.spikes.push({
+                x: spike.x,
+                y: spike.y,
+                width: spike.rectangle.width,
+                height: spike.rectangle.height,
+                rotation: spike.angle // Save the rotation angle
+            });
+        });
+        
         // Save player state
         if (this.player) {
             state.player = {
@@ -193,9 +212,17 @@ export class EditorScene extends Phaser.Scene {
         // Remove all triggers
         this.triggers.getChildren().forEach(trigger => trigger.destroy());
         
+        // Remove all spikes
+        this.spikes.getChildren().forEach(spike => spike.destroy());
+        
         // Remove player
         if (this.player) {
             this.player.destroy();
+        }
+        
+        // Close death screen if it exists
+        if (this.deathScreen) {
+            this.deathScreen.close();
         }
         
         // Restore blocks
@@ -223,6 +250,27 @@ export class EditorScene extends Phaser.Scene {
                 trigger.setSelected(false);
             }
         });
+        
+        // Restore spikes
+        if (state.spikes) {
+            state.spikes.forEach(spikeData => {
+                const spike = new Spike(this, spikeData.x, spikeData.y);
+                // Make sure the spike is interactive
+                spike.setInteractive(new Phaser.Geom.Rectangle(-spikeData.width/2, -spikeData.height/2, spikeData.width, spikeData.height), Phaser.Geom.Rectangle.Contains);
+                
+                // Restore rotation if it exists in the saved data
+                if (spikeData.rotation !== undefined) {
+                    spike.setAngle(spikeData.rotation);
+                }
+                
+                this.spikes.add(spike);
+                
+                // Ensure spike is properly initialized for selection
+                if (spike.setSelected) {
+                    spike.setSelected(false);
+                }
+            });
+        }
         
         // Restore player
         if (state.player) {
@@ -381,6 +429,29 @@ export class EditorScene extends Phaser.Scene {
                 // Add collision with blocks
                 this.physics.add.collider(this.player, this.blocks);
                 
+                // Create death screen instance
+                this.deathScreen = new DeathScreen(this);
+                
+                // Add collision with spikes that kills the player
+                if (this.spikes && this.spikes.getChildren().length > 0) {
+                    // Enable physics for all spikes
+                    this.spikes.getChildren().forEach(spike => {
+                        if (!spike.body) {
+                            this.physics.add.existing(spike, true); // Static body
+                            spike.body.setSize(spike.rectangle.width, spike.rectangle.height);
+                        }
+                    });
+                    
+                    // Add overlap with player that triggers death
+                    this.physics.add.overlap(this.player, this.spikes, () => {
+                        // Only show death screen if not already shown and victory popup is not shown
+                        if (!this.isDeathPopupShown && !this.isVictoryPopupShown) {
+                            // Show death screen
+                            this.deathScreen.show();
+                        }
+                    });
+                }
+                
                 // Check if player is inside any block and move them to a safe position
                 this.checkAndFixPlayerPosition();
                 
@@ -536,11 +607,20 @@ export class EditorScene extends Phaser.Scene {
     
     update(time, delta) {
         if (this.player && this.isPreviewMode) {
-            // Pass time and delta to the player update method
-            this.player.update(time, delta);
-            
-            // Check if player is outside level boundaries and teleport them back inside
-            this.checkAndFixPlayerBoundaries();
+            // Only update player if death popup is not shown
+            if (!this.isDeathPopupShown) {
+                // Pass time and delta to the player update method
+                this.player.update(time, delta);
+                
+                // Check if player is outside level boundaries and teleport them back inside
+                this.checkAndFixPlayerBoundaries();
+            } else {
+                // If death popup is shown, freeze the player
+                if (this.player.body) {
+                    this.player.body.velocity.x = 0;
+                    this.player.body.velocity.y = 0;
+                }
+            }
         }
         
         // Update moving clouds

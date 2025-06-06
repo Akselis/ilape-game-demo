@@ -25,7 +25,11 @@ export class SelectorTool extends Tool {
         }
         
         // Check if we clicked an object
-        const objects = [...this.scene.blocks.getChildren(), ...this.scene.triggers.getChildren()];
+        const objects = [
+            ...this.scene.blocks.getChildren(), 
+            ...this.scene.triggers.getChildren(),
+            ...this.scene.spikes.getChildren() // Add spikes to selectable objects
+        ];
         // Add player to objects list if it exists
         if (this.scene.player) {
             objects.push(this.scene.player);

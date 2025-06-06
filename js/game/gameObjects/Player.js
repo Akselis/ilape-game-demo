@@ -281,8 +281,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
     
     update(time, delta) {
-        // Only process input in preview mode and when victory popup is not shown
-        if (this.scene.isPreviewMode && !this.scene.isVictoryPopupShown) {
+        // Only process input in preview mode and when victory/death popup is not shown
+        if (this.scene.isPreviewMode && !this.scene.isVictoryPopupShown && !this.scene.isDeathPopupShown) {
             // Update input state from touch controls if available
             if (this.scene.touchControls) {
                 this.inputState.left = this.scene.touchControls.left || false;
@@ -297,15 +297,15 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
                 this.inputState.jump = this.keyboardState.up || false;
             }
         } else {
-            // Reset input state when not in preview mode or when victory popup is shown
+            // Reset input state when not in preview mode or when victory/death popup is shown
             this.inputState = {
                 left: false,
                 right: false,
                 jump: false
             };
             
-            // If victory popup is shown, also stop all movement
-            if (this.scene.isVictoryPopupShown && this.body) {
+            // If victory or death popup is shown, also stop all movement
+            if ((this.scene.isVictoryPopupShown || this.scene.isDeathPopupShown) && this.body) {
                 this.body.velocity.x = 0;
                 this.body.velocity.y = 0;
             }
@@ -321,8 +321,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
             isPlayerOnGround: this.body.touching.down
         });
 
-        // If victory popup is shown, freeze the player completely
-        if (this.scene.isVictoryPopupShown && this.body) {
+        // If victory or death popup is shown, freeze the player completely
+        if ((this.scene.isVictoryPopupShown || this.scene.isDeathPopupShown) && this.body) {
             // Set velocity to zero to stop all movement
             this.body.velocity.x = 0;
             this.body.velocity.y = 0;
