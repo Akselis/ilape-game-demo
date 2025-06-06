@@ -613,6 +613,19 @@ function App() {
                 </svg>
                 {!isMobile && <span style={{ marginLeft: '8px' }}>Spygliai</span>}
               </button>
+              
+              <button 
+                id="enemy-tool"
+                style={toolButtonStyle('enemy')} 
+                onClick={() => handleToolSelect('enemy')}
+                title="Enemy Tool"
+              >
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M7,7 L13,7 L13,13 L7,13 Z" stroke="currentColor" strokeWidth="1.5" fill="none" />
+                  <path d="M5,10 L15,10" stroke="currentColor" strokeWidth="1.5" />
+                </svg>
+                {!isMobile && <span style={{ marginLeft: '8px' }}>Priešas</span>}
+              </button>
             </div>
             
             {/* Bottom section with save info and reset button */}

@@ -83,6 +83,7 @@ export class DeathScreen {
         restartButton.setInteractive({ useHandCursor: true });
         restartButton.on('pointerdown', () => {
             this.close();
+            
             // Reset player position to starting position
             if (this.scene.player && this.scene.savedState && this.scene.savedState.player) {
                 this.scene.player.x = this.scene.savedState.player.x;
@@ -92,6 +93,32 @@ export class DeathScreen {
                     this.scene.player.body.velocity.x = 0;
                     this.scene.player.body.velocity.y = 0;
                 }
+            }
+            
+            // Reset enemy states
+            if (this.scene.enemies && this.scene.savedState && this.scene.savedState.enemies) {
+                // First, get all current enemies
+                const currentEnemies = this.scene.enemies.getChildren();
+                
+                // For each saved enemy state, find the corresponding enemy and reset its position
+                this.scene.savedState.enemies.forEach((savedEnemy, index) => {
+                    if (currentEnemies[index]) {
+                        // Reset position
+                        currentEnemies[index].x = savedEnemy.x;
+                        currentEnemies[index].y = savedEnemy.y;
+                        
+                        // Reset direction to initial state
+                        currentEnemies[index].direction = savedEnemy.direction || 1;
+                        
+                        // Reset velocity
+                        if (currentEnemies[index].body) {
+                            currentEnemies[index].body.velocity.x = 0;
+                            currentEnemies[index].body.velocity.y = 0;
+                        }
+                    }
+                });
+                
+                console.log('Enemy states reset after death');
             }
         });
         

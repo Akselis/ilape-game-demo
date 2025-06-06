@@ -28,7 +28,8 @@ export class SelectorTool extends Tool {
         const objects = [
             ...this.scene.blocks.getChildren(), 
             ...this.scene.triggers.getChildren(),
-            ...this.scene.spikes.getChildren() // Add spikes to selectable objects
+            ...this.scene.spikes.getChildren(), // Add spikes to selectable objects
+            ...this.scene.enemies.getChildren() // Add enemies to selectable objects
         ];
         // Add player to objects list if it exists
         if (this.scene.player) {

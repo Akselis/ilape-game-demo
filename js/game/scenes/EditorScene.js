@@ -2,6 +2,7 @@ import { Block } from '../gameObjects/Block.js';
 import { Player } from '../gameObjects/Player.js';
 import { LevelEndTrigger } from '../gameObjects/LevelEndTrigger.js';
 import { Spike } from '../gameObjects/Spike.js';
+import { Enemy } from '../gameObjects/Enemy.js';
 import { DeathScreen } from '../gameObjects/DeathScreen.js';
 import { SelectorTool } from '../tools/SelectorTool.js';
 // MoverTool removed as requested
@@ -9,12 +10,18 @@ import { BlockTool } from '../tools/BlockTool.js';
 import { TriggerTool } from '../tools/TriggerTool.js';
 import { PlayerTool } from '../tools/PlayerTool.js';
 import { SpikeTool } from '../tools/SpikeTool.js';
+import { EnemyTool } from '../tools/EnemyTool.js';
 import { saveStateToStorage, loadStateFromStorage } from '../../utils/cookieManager.js';
 
 export class EditorScene extends Phaser.Scene {
     // Helper method to detect mobile devices more accurately using user agent
     isMobileDevice() {
         return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    }
+    
+    preload() {
+        // Load player texture
+        this.load.image('ilape-icon', 'js/img/ilape-icon.png');
     }
     
     constructor() {
@@ -42,10 +49,11 @@ export class EditorScene extends Phaser.Scene {
         // Create a gradient sky background
         this.createSkyBackground();
         
-        // Create groups for blocks, triggers and spikes
+        // Create groups for blocks, triggers, spikes and enemies
         this.blocks = this.add.group();
         this.triggers = this.add.group();
         this.spikes = this.add.group();
+        this.enemies = this.add.group();
         
         // Create the minimap for level navigation
         this.createMinimap();
@@ -103,7 +111,8 @@ export class EditorScene extends Phaser.Scene {
             block: new BlockTool(this),
             trigger: new TriggerTool(this),
             player: new PlayerTool(this),
-            spike: new SpikeTool(this)
+            spike: new SpikeTool(this),
+            enemy: new EnemyTool(this)
         };
         
         // Set up input handlers
@@ -149,6 +158,7 @@ export class EditorScene extends Phaser.Scene {
             blocks: [],
             triggers: [],
             spikes: [],
+            enemies: [],
             player: null,
             camera: {
                 scrollX: this.cameras.main.scrollX,
@@ -190,6 +200,14 @@ export class EditorScene extends Phaser.Scene {
             });
         });
         
+        // Save enemies state
+        this.enemies.getChildren().forEach(enemy => {
+            state.enemies.push({
+                x: enemy.x,
+                y: enemy.y
+            });
+        });
+        
         // Save player state
         if (this.player) {
             state.player = {
@@ -214,6 +232,9 @@ export class EditorScene extends Phaser.Scene {
         
         // Remove all spikes
         this.spikes.getChildren().forEach(spike => spike.destroy());
+        
+        // Remove all enemies
+        this.enemies.getChildren().forEach(enemy => enemy.destroy());
         
         // Remove player
         if (this.player) {
@@ -253,22 +274,29 @@ export class EditorScene extends Phaser.Scene {
         
         // Restore spikes
         if (state.spikes) {
+            console.log(`Restoring ${state.spikes.length} spikes from saved state`);
             state.spikes.forEach(spikeData => {
-                const spike = new Spike(this, spikeData.x, spikeData.y);
-                // Make sure the spike is interactive
-                spike.setInteractive(new Phaser.Geom.Rectangle(-spikeData.width/2, -spikeData.height/2, spikeData.width, spikeData.height), Phaser.Geom.Rectangle.Contains);
+                // Create spike with the saved dimensions
+                const spike = new Spike(this, spikeData.x, spikeData.y, spikeData.width, spikeData.height);
                 
-                // Restore rotation if it exists in the saved data
+                // Apply saved rotation if available
                 if (spikeData.rotation !== undefined) {
                     spike.setAngle(spikeData.rotation);
                 }
                 
-                this.spikes.add(spike);
+                // Make sure the spike is interactive with the correct dimensions
+                spike.setInteractive(new Phaser.Geom.Rectangle(-spikeData.width/2, -spikeData.height/2, spikeData.width, spikeData.height), Phaser.Geom.Rectangle.Contains);
                 
-                // Ensure spike is properly initialized for selection
-                if (spike.setSelected) {
-                    spike.setSelected(false);
-                }
+                // Add to spikes group
+                this.spikes.add(spike);
+            });
+        }
+        
+        // Restore enemies
+        if (state.enemies) {
+            state.enemies.forEach(enemyData => {
+                const enemy = new Enemy(this, enemyData.x, enemyData.y);
+                this.enemies.add(enemy);
             });
         }
         
@@ -455,6 +483,9 @@ export class EditorScene extends Phaser.Scene {
                 // Check if player is inside any block and move them to a safe position
                 this.checkAndFixPlayerPosition();
                 
+                // Set up enemy collisions and behavior in preview mode
+                this.setupEnemyCollisions();
+                
                 // Add collision with level end triggers
                 this.triggers.getChildren().forEach(trigger => {
                     // Enable physics for trigger as a sensor (no solid collision)
@@ -540,6 +571,17 @@ export class EditorScene extends Phaser.Scene {
                 }
             });
             
+            // Clean up enemy physics bodies
+            if (this.enemies) {
+                this.enemies.getChildren().forEach(enemy => {
+                    if (enemy.body) {
+                        // Destroy the physics body but keep the game object
+                        this.physics.world.remove(enemy.body);
+                        enemy.body = null;
+                    }
+                });
+            }
+            
             if (this.player && this.player.body) {
                 this.physics.world.remove(this.player.body);
                 this.player.body = null;
@@ -605,6 +647,65 @@ export class EditorScene extends Phaser.Scene {
         });
     }
     
+    // Set up enemy collisions and behavior for preview mode
+    setupEnemyCollisions() {
+        // Only proceed if we have enemies and player
+        if (!this.enemies || !this.player) return;
+        
+        // Enable physics for all enemies
+        this.enemies.getChildren().forEach(enemy => {
+            if (!enemy.body) {
+                this.physics.add.existing(enemy);
+            }
+            
+            // Make sure enemy physics are enabled
+            if (enemy.body) {
+                enemy.body.enable = true;
+                enemy.body.gravity.y = 300; // Same gravity as player
+            }
+            
+            // Add collision between enemy and blocks
+            this.physics.add.collider(enemy, this.blocks, (enemy, block) => {
+                // Check if the collision is from the side (horizontal)
+                if (enemy.body.touching.left || enemy.body.touching.right) {
+                    // Reverse enemy direction when hitting blocks from the sides
+                    enemy.reverseDirection();
+                }
+            });
+            
+            // Add collision between enemy and spikes
+            if (this.spikes && this.spikes.getChildren().length > 0) {
+                this.physics.add.overlap(enemy, this.spikes, (enemy, spike) => {
+                    // Enemy changes direction when hitting spikes
+                    enemy.reverseDirection();
+                });
+            }
+            
+            // Add collision between enemy and player
+            this.physics.add.overlap(this.player, enemy, (player, enemy) => {
+                // Get the relative positions to determine collision direction
+                const playerBottom = player.y + player.body.height / 2;
+                const enemyTop = enemy.y - enemy.body.height / 2;
+                
+                // If player is above enemy (stomping on head)
+                if (playerBottom < enemyTop + 10 && player.body.velocity.y > 0) {
+                    // Player defeated the enemy
+                    enemy.die();
+                    
+                    // Make player bounce up slightly
+                    player.body.velocity.y = -200;
+                } else {
+                    // Player dies if hitting enemy from sides or below
+                    if (!this.isDeathPopupShown && !this.isVictoryPopupShown) {
+                        // Show death screen
+                        this.deathScreen.show();
+                        this.isDeathPopupShown = true;
+                    }
+                }
+            });
+        });
+    }
+    
     update(time, delta) {
         if (this.player && this.isPreviewMode) {
             // Only update player if death popup is not shown
@@ -621,6 +722,15 @@ export class EditorScene extends Phaser.Scene {
                     this.player.body.velocity.y = 0;
                 }
             }
+        }
+        
+        // Update enemies in preview mode
+        if (this.isPreviewMode && this.enemies) {
+            this.enemies.getChildren().forEach(enemy => {
+                if (enemy.active && enemy.body) {
+                    enemy.update();
+                }
+            });
         }
         
         // Update moving clouds
@@ -1755,6 +1865,17 @@ export class EditorScene extends Phaser.Scene {
         
         // Remove all triggers
         this.triggers.getChildren().forEach(trigger => trigger.destroy());
+        
+        // Remove all spikes
+        if (this.spikes) {
+            console.log(`Cleaning up ${this.spikes.getChildren().length} spikes`);
+            this.spikes.getChildren().forEach(spike => spike.destroy());
+        }
+        
+        // Remove all enemies
+        if (this.enemies) {
+            this.enemies.getChildren().forEach(enemy => enemy.destroy());
+        }
         
         // Remove player if it exists
         if (this.player) {
